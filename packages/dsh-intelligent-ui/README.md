@@ -1,8 +1,8 @@
 # dsh-intelligent-ui
 
-DSH **v0.2.0-rc.2** 的独立插件：DSH 中根会话（不含子代理）的一条最终回答正常完成后，插件在回答下方追加一个受限的**交互视图**，含 Markdown 摘录、卡片、可排序表格、柱状/折线图。**原回答的 Markdown 不做任何改动**，视图只是附加内容；生成失败或无需增强时，用户看到的就是原回答。
+DSH **v0.2.1-rc.2** 的独立插件：DSH 中根会话（不含子代理）的一条最终回答正常完成后，插件在回答下方追加一个受限的**交互视图**，含 Markdown 摘录、卡片、可排序表格、柱状/折线图。**原回答的 Markdown 不做任何改动**，视图只是附加内容；生成失败或无需增强时，用户看到的就是原回答。
 
-- 适配版本：`@deepseek-ai/dsh-*` 0.2.0-rc.2（tag `dsh-v0.2.0-rc.2`，commit `639ed015397290b3745d163aafe02ffee4aa3f84`）。
+- 适配版本：`@deepseek-ai/dsh-*` 0.2.1-rc.2（tag `dsh-v0.2.1-rc.2`，commit `687f282e8625c6b8d11ff58211a90524be2e4317`）。本包 0.1.1 只适配 0.2.1-rc.2；DSH 0.2.0-rc.2 请使用分支 `claude/dsh-0.2.0-rc.2` 的 0.1.0。
 - 已实际验证的平台：**DSH Web（Linux x64，Chromium）**。Desktop 未验证（BLOCKED/NOT_RUN，见 `ACCEPTANCE.md`），不声明 Desktop 支持。
 
 ## 安装
@@ -10,7 +10,7 @@ DSH **v0.2.0-rc.2** 的独立插件：DSH 中根会话（不含子代理）的�
 使用预编译包安装，无需源码构建：
 
 ```sh
-dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.0.tgz
+dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.1.tgz
 ```
 
 安装后重启该 profile。插件自带的 `cordis.patch.yml` 只插入一个节点 `intelligent-ui`，默认配置为 `mode: smart-auto`。它不覆盖主 Agent Loop 或任何宿主节点。
@@ -102,19 +102,23 @@ pnpm run pack    # 构建后生成 dist/*.tgz 及 .sha256
 
 Client 产物 `lib/client.js` 是单个 CJS 浏览器 bundle（按宿主模块加载约定）：
 
-- React、`react/jsx-runtime`、`dsh-client-ui-primitives` 等平台模块由宿主共享，不打包进 bundle；
+- React、`react/jsx-runtime`、`zod`、`dsh-client-ui-primitives` 等平台模块由宿主共享，不打包进 bundle；
 - 不拆分 chunk。
 
-`scripts/typert.mjs` 的作用：官方 Typert 生成器只能在 DSH 源码工作区中运行，因此该脚本先构造一个临时的同构工作区，再调用 `WorkspaceTypertGenerator`，生成 `lib/typert.host.*` 和 `lib/typert.remote-client.*`。
+`scripts/typert.mjs` 的作用：官方 Typert 生成器只能在 DSH 源码工作区中运行，因此该脚本先构造一个临时的同构工作区，再调用 `WorkspaceTypertGenerator`，生成 `lib/typert.host.*` 和 `lib/typert.remote-client.*`。0.2.1 的生成器要求合并进被分析接口（如 `TypertResourceMap`）的声明都来自已登记的包，因此临时工作区同时镜像 `dsh-typert-protocol` 与 `dsh-session`。
+
+## 0.2.1-rc.2 的 Remote 访问控制
+
+0.2.1 新增非 owner Peer（如共享阅读者）的 Remote 访问控制。owner（本机 Web/Desktop 用户）不受检查。`read`/`retry` 的参数带 `sessionId` 字段，网关按默认规则把它解析为对应 Session 资源；本插件不注册 policy，所以非 owner 默认被拒绝，不会读到增强结果。
 
 ## 依赖说明
 
 | 依赖 | 需求 |
 | --- | --- |
-| `zod` | 校验配置、模型输出和存储记录；生成的 Typert 编解码代码也依赖它（与官方插件一致） |
+| `zod`（精确 4.4.3） | 校验配置、模型输出和存储记录；生成的 Typert 编解码代码也依赖它。版本与 0.2.1-rc.2 宿主（`dsh-storage-domain` 精确依赖、Web 外壳模块表提供）一致；Client bundle 使用外壳提供的 zod，不再内联 |
 | `mdast-util-from-markdown` + `micromark-extension-gfm` + `mdast-util-gfm` | 解析原回答，建立可引用块和 GFM 表格索引，是“只能引用原文”约束的基础 |
 | `mdast-util-to-string` | 提取标题、单元格的纯文本，用作卡片标题、表头 |
-| `@deepseek-ai/dsh-*`（peer，精确 0.2.0-rc.2） | 宿主服务：llm、session、storage-domain、typert-protocol、cordis |
+| `@deepseek-ai/dsh-*`（peer，精确 0.2.1-rc.2） | 宿主服务：llm、session、storage-domain、typert-protocol、cordis |
 
 许可证见 `THIRD_PARTY_NOTICES.md`，全部为 MIT。
 

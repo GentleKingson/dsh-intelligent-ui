@@ -14,9 +14,9 @@ const pkg = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const tsc = join(pkg, 'node_modules/typescript/bin/tsc')
 const run = (...args) => { execFileSync(process.execPath, args, { cwd: pkg, stdio: 'inherit' }) }
 
-/** Shell-provided module table (DSH packages/client/web/src/platform.ts at rc.2). */
+/** Shell-provided module table (DSH packages/client/web/src/platform.ts at 0.2.1-rc.2). */
 const PLATFORM_MODULES = new Set([
-  'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@deepseek-ai/cordis',
+  'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@deepseek-ai/cordis', 'zod', '@tanstack/react-virtual',
   '@deepseek-ai/dsh-client-store', '@deepseek-ai/dsh-client-ui-slots',
   '@deepseek-ai/dsh-client-ui-primitives', '@deepseek-ai/dsh-client-ui-dockkit',
 ])

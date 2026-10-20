@@ -6,7 +6,7 @@
 
 | 包 | 锁定版本 | 许可证 | 用途 |
 | --- | --- | --- | --- |
-| zod | 4.6.7 | MIT | 配置、模型输出与存储记录的严格校验；生成的 Typert 编解码 |
+| zod | 4.4.3 | MIT | 配置、模型输出与存储记录的严格校验；生成的 Typert 编解码 |
 | mdast-util-from-markdown | 2.1.0 | MIT | 解析原回答 Markdown，建立可引用块索引 |
 | mdast-util-gfm | 3.1.0 | MIT | GFM 表格/列表支持 |
 | micromark-extension-gfm | 3.0.0 | MIT | GFM 语法扩展 |
@@ -17,10 +17,9 @@
 
 ## 浏览器 bundle（`lib/client.js`）内联内容
 
-- zod 4.6.7（MIT），来自生成的 `typert.remote-client.js`。
-- 本插件自身源码。
+- 本插件自身源码，以及 `@deepseek-ai/dsh-typert-protocol` 的 `remote-info` 小段（MIT，由生成的 `typert.remote-client.js` 引入）。
 
-React、`@deepseek-ai/dsh-client-ui-primitives` 等平台模块不打包，运行时由 DSH 外壳的模块表提供。
+React、zod、`@deepseek-ai/dsh-client-ui-primitives` 等平台模块不打包，运行时由 DSH 外壳的模块表提供。
 
 ## 对等依赖（`peerDependencies`，由 DSH 安装提供）
 

@@ -35,16 +35,22 @@ async function open(colorScheme = 'light') {
 async function ask(page, prompt) {
   await page.getByText('新会话', { exact: true }).first().click()
   await page.waitForTimeout(800)
+  const picker = page.getByRole('button', { name: '打开', exact: true })
   const send = async () => {
     const box = page.getByRole('textbox').last()
     await box.click()
+    // 0.2.1: the composer asks for a workspace before it accepts text.
+    if (await picker.isVisible().catch(() => false)) {
+      await picker.click()
+      await page.waitForTimeout(800)
+      await box.click()
+    }
     await box.fill('')
     await box.pressSequentially(prompt)
     await page.keyboard.press('Enter')
   }
   await send()
   await page.waitForTimeout(1200)
-  const picker = page.getByRole('button', { name: '打开', exact: true })
   if (await picker.isVisible().catch(() => false)) {
     await picker.click()
     await page.waitForTimeout(800)
