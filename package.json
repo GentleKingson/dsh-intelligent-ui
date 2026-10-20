@@ -1,0 +1,13 @@
+{
+  "name": "dsh-intelligent-ui-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": "^22.19.0 || >=24.0.0" },
+  "scripts": {
+    "build": "pnpm -C packages/dsh-intelligent-ui build",
+    "typecheck": "pnpm -C packages/dsh-intelligent-ui typecheck",
+    "test": "pnpm -C packages/dsh-intelligent-ui test",
+    "pack": "pnpm -C packages/dsh-intelligent-ui run pack"
+  }
+}

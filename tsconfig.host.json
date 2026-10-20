@@ -1,0 +1,4 @@
+{
+  "files": [],
+  "references": [{ "path": "./packages/dsh-intelligent-ui/tsconfig.host.json" }]
+}

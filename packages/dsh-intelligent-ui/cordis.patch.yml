@@ -1,0 +1,8 @@
+# Profile Bundle: one row serves both the Host service (main) and the browser
+# bundle (./client). Set `mode: off` to stop new model calls; disable or remove
+# the plugin to remove the interactive view entirely.
+- insert:
+    - id: intelligent-ui
+      name: dsh-intelligent-ui
+      config:
+        mode: smart-auto
