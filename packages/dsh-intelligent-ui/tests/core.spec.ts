@@ -36,6 +36,12 @@ describe('numeric fidelity', () => {
     expect(analyzeColumn(['1', 'many']).numeric).toBeNull()
     expect(analyzeColumn(['1', '—']).categorical).toBe(false)
   })
+
+  it('keeps an escaped pipe inside its cell', () => {
+    const table = buildSourceIndex('| 名称 | 值 |\n| --- | ---: |\n| a \\| b | 1 |\n| c | 2 |').tables.get('t0')
+    expect(table?.data.headers).toHaveLength(2)
+    expect(table?.data.rows[0]).toEqual(['a | b', '1'])
+  })
 })
 
 describe('program validation (fails closed)', () => {
