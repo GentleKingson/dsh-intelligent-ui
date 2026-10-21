@@ -1,6 +1,6 @@
 {
   "name": "dsh-intelligent-ui",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "DSH v0.2.0-rc.2 插件：为已完成的根会话最终回答追加受限交互视图（Markdown/Card/Table/Chart），原文保持不变",
   "license": "MIT",
   "type": "module",

@@ -10,7 +10,7 @@ DSH **v0.2.0-rc.2** 的独立插件：DSH 中根会话（不含子代理）的�
 使用预编译包安装，无需源码构建：
 
 ```sh
-dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.0.tgz
+dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.2.tgz
 ```
 
 安装后重启该 profile。插件自带的 `cordis.patch.yml` 只插入一个节点 `intelligent-ui`，默认配置为 `mode: smart-auto`。它不覆盖主 Agent Loop 或任何宿主节点。

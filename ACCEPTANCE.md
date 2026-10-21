@@ -134,3 +134,27 @@ node validation/web-e2e.mjs '<带 token 的 URL>' <输出目录> /tmp/mock.jsonl
    - 视图 `usage` 中的真实输入/输出 tokens（提示词字符数不是 token 数）；
    - 每次调用的耗时。
 2. **Desktop**：用最终合并提交重新执行 `pnpm run pack`，安装前记录该 tgz 的 SHA-256，再按上文“Desktop 复现步骤”验证。不能复用 `release/` 中的旧同名包。
+
+---
+
+# 追加记录：安装包 0.1.2（2026-10-21）
+
+本节为追加内容，上文各节保持原样。0.1.2 是 `claude/dsh-0.2.0-rc.2` 分支（DSH 固定 `0.2.0-rc.2`）在阶段 1～3 合并后的安装包。它跳过 0.1.1，因为该版本号已被 `claude/dsh-0.2.1-rc.2` 分支的包（对应 DSH 0.2.1-rc.2）占用。**两条分支的版本号大小不代表 DSH 新旧**，安装前请核对包的 `peerDependencies` 中的 DSH 版本。
+
+| 项 | 值 |
+| --- | --- |
+| 包 | `release/dsh-intelligent-ui-0.1.2.tgz`（`release/dsh-intelligent-ui-0.1.0.tgz` 保留，为历史包） |
+| 构建提交 | `5896e79`（在 `f45dffb` 上只把版本号改为 0.1.2，源码与 `f4e9eb1` 相同） |
+| SHA-256 | `69afe8b47b33a680a9d8bfb1061dd99a8a2301c27db27a97302167be651fc180` |
+| 可复现性 | 从干净 clone 执行 `pnpm install --frozen-lockfile && pnpm run pack`，得到逐字节相同的包 |
+
+## 本包验证（本地运行，非 GitHub CI）
+
+| 检查 | 结果 |
+| --- | --- |
+| `typecheck` / `test` / `pack` | PASS / 85 项全部通过 / PASS |
+| 安装到干净的 DSH 0.2.0-rc.2 profile | 安装后的插件版本为 0.1.2 |
+| Web E2E `main` / `touch` / `reload` | 27/27 / 6/6 / 4/4 |
+| Web E2E `absent`（卸载后） | 4/4 |
+
+Web E2E 使用的模型仍为本地 mock。B4 真实模型对比与 Desktop 验收仍为 **NOT_RUN**；补测时请直接使用本包，并先核对上面的 SHA-256。
