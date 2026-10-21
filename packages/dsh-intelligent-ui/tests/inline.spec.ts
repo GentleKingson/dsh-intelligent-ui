@@ -111,6 +111,7 @@ describe('validateInlineArgs', () => {
     expect(readInlineArgs('{"items":[]} trailing').ok).toBe(false)
     expect(readInlineArgs('{"items":[').ok).toBe(false)
     expect(validateInlineArgs({ items: [] }).ok).toBe(false)
+    expect(validateInlineArgs({ items: [MARKDOWN, MARKDOWN] })).toMatchObject({ ok: false, detail: expect.stringContaining('table, chart, or cards') })
   })
 })
 

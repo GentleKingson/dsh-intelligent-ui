@@ -16,7 +16,7 @@ export const INLINE_TOOL_NAME = 'render_ui'
 
 /** Agent-level guidance registered beside the tool for root agents only. */
 export const INLINE_PROMPT = `# Interactive view (render_ui)
-Most answers are plain Markdown; keep them that way. Call render_ui only when the answer is mainly structured data the user will scan or compare: a table of records, numeric series worth a chart, or 2+ parallel options worth cards.
+Call render_ui whenever the main content of your answer is one of: 2+ options, tools, or approaches compared on the same aspects (cards, or a table of option x aspect); a list of 4+ items that share the same fields (a table, e.g. codes with meaning and usage); or numeric data (a table, plus a chart when there is a trend or comparison). Keep plain Markdown for explanations, how-tos, code, and short or conversational answers.
 When you call it: first write a short plain-Markdown answer (1-3 sentences stating the conclusion) so the reply stays readable without the view, then call render_ui once with the structured data. Make the first item a markdown component restating that conclusion in one sentence: your text before the call is folded once the turn ends, so the view must carry it. Put the data only in the tool arguments, not again in your text. A successful call ends your turn; if it fails, answer in plain Markdown instead.
 Rules: text is plain Markdown without HTML, images, or scripts. Every table/chart row has exactly one cell per header. Chart series columns hold plain numbers sharing one unit (e.g. "1,200", "12.5%", or "—" for missing). A line chart needs an increasing time/sequence category column (2025-01, Q1, 1月, years); otherwise use bar.`
 
@@ -56,7 +56,7 @@ export const INLINE_PARAMETERS = {
   properties: {
     items: {
       type: 'array',
-      description: `1-${LIMITS.items} components, in display order; start with a markdown conclusion. Each is one of: `
+      description: `1-${LIMITS.items} components, in display order; start with a markdown conclusion, then at least one table, chart, or cards item. Each is one of: `
         + '{"type":"markdown","markdown":string}; '
         + `{"type":"cards","cards":[{"title":string,"markdown":string}, ...2-${LIMITS.cards}]}; `
         + '{"type":"table","headers":[string...],"rows":[[cell...]...],"align"?:["left"|"center"|"right"|"none"...]}; '
@@ -145,6 +145,8 @@ export function validateInlineArgs(args: unknown): InlineArgsOutcome {
     if (!outcome.ok) return { ok: false, detail: `item ${index}: ${outcome.detail}` }
     items.push(outcome.item)
   }
+  // A call ends the turn, so a Markdown-only view would replace the data the answer was meant to show.
+  if (items.every(item => item.type === 'markdown')) return { ok: false, detail: 'add at least one table, chart, or cards item' }
   return { ok: true, items }
 }
 
