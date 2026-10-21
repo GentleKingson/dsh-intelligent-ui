@@ -83,6 +83,15 @@ describe('validateInlineArgs', () => {
     expect(outcome.items[1]).toMatchObject({ table: { rows: [['Q1', '1,200'], ['Q2', '1450']] } })
   })
 
+  it('reads items that omit "type", and a chart without "x", as real follow-up turns write them', () => {
+    const { type: _chart, x: _x, ...chart } = CHART
+    const { type: _markdown, ...markdown } = MARKDOWN
+    const { type: _table, ...table } = TABLE
+    const outcome = validateInlineArgs({ items: [markdown, table, chart] })
+    expect(outcome.ok && outcome.items.map(item => item.type)).toEqual(['markdown', 'table', 'chart'])
+    expect(outcome.ok && outcome.items[2]).toMatchObject({ chart: 'line', categories: ['1月', '2月', '3月'] })
+  })
+
   it('drops a table that repeats a chart\'s data and keeps one with other columns', () => {
     const repeat = { type: 'table', headers: CHART.headers, rows: CHART.rows }
     const extra = { type: 'table', headers: [...CHART.headers, '环比'], rows: CHART.rows.map((row, index) => [...row, `${index}%`]) }

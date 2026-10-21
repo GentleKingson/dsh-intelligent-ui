@@ -43,7 +43,8 @@ const itemSchema = z.discriminatedUnion('type', [
     chart: z.enum(['bar', 'line']),
     headers,
     rows: rows.min(2),
-    x: z.number().int().nonnegative(),
+    // Follow-up turns sometimes omit it; real outputs always put the categories in column 0.
+    x: z.number().int().nonnegative().default(0),
     series: z.array(z.number().int().nonnegative()).min(1).max(LIMITS.chartSeries),
   }),
 ])
@@ -86,13 +87,19 @@ function consistent(width: number, data: readonly (readonly string[])[], what: s
   if (bad >= 0) throw new BindingError(`${what} row ${bad} has ${data[bad]?.length} cells for ${width} headers`)
 }
 
+function inferType(item: object): string | undefined {
+  return ['chart', 'markdown', 'cards'].find(key => key in item) ?? ('rows' in item ? 'table' : undefined)
+}
+
 /**
  * Validate and resolve one component written by the model.
  * @param value - one parsed element of the `items` array.
  * @returns the resolved item or a rejection; a rejection never renders.
  */
 export function resolveInlineItem(value: unknown): InlineItemOutcome {
-  const parsed = itemSchema.safeParse(value)
+  // Follow-up turns sometimes drop "type"; an item's own keys already name it, and the strict schema still checks the rest.
+  const typed = typeof value === 'object' && value !== null && !('type' in value) ? { type: inferType(value), ...value } : value
+  const parsed = itemSchema.safeParse(typed)
   if (!parsed.success) return { ok: false, detail: `schema: ${parsed.error.issues[0]?.message ?? 'rejected'}` }
   const item = parsed.data
   if (unsafeText(item)) return { ok: false, detail: 'HTML, image, or script content is not allowed' }
