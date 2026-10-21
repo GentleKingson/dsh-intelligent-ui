@@ -48,6 +48,6 @@ body[data-ds-dark-theme] .diu-root{--diu-s0:#7aa2f7;--diu-s1:#f0a35e;--diu-s2:#5
 .diu-legend-item svg circle,.diu-legend-item svg rect,.diu-legend-item svg path{fill:var(--c)}
 .diu-hit{fill:transparent;outline:none}
 .diu-cursor{stroke:var(--dsw-alias-label-tertiary,#888);stroke-dasharray:3 3;pointer-events:none}
-.diu-tooltip{position:absolute;top:8px;pointer-events:none;background:var(--dsw-alias-bg-l1,Canvas);border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.35));border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.15);white-space:nowrap;z-index:1}
+.diu-tooltip{position:absolute;top:8px;pointer-events:none;background:var(--dsw-alias-bg-l1,Canvas);border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.35));border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.15);width:max-content;max-width:calc(50% - 8px);overflow-wrap:anywhere;z-index:1}
 .diu-swatch{display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--c);margin-right:4px}
 `

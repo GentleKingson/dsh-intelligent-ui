@@ -46,8 +46,63 @@ export function parseCell(raw: string): CellValue {
 export interface ColumnAnalysis {
   /** Same-unit numeric series, or null when the column is not plottable. */
   readonly numeric: { readonly unit: string; readonly values: readonly (number | null)[] } | null
-  /** Every cell present: usable as the category/time axis. */
+  /** Every cell present: usable as the category axis of a bar chart. */
   readonly categorical: boolean
+  /** Cells form one strictly increasing time/sequence scale: usable as a line chart's x axis. */
+  readonly ordered: boolean
+}
+
+const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
+const CN_QUARTER: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4 }
+
+/** Recognized axis label shapes; each maps a label to its position on one scale. */
+const AXIS_FORMATS: readonly (readonly [scale: string, pattern: RegExp, key: (m: RegExpExecArray) => number | null])[] = [
+  ['day', /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/, m => date(m[1], m[2], m[3])],
+  ['day', /^(\d{4})年(\d{1,2})月(\d{1,2})日$/, m => date(m[1], m[2], m[3])],
+  ['month', /^(\d{4})[-/.](\d{1,2})$/, m => date(m[1], m[2])],
+  ['month', /^(\d{4})年(\d{1,2})月$/, m => date(m[1], m[2])],
+  ['quarter', /^(\d{4})年?\s*[-/ ]?\s*Q([1-4])$/i, m => Number(m[1]) * 4 + Number(m[2])],
+  ['quarter', /^(\d{4})年?第?([1-4一二三四])季度$/, m => Number(m[1]) * 4 + (CN_QUARTER[m[2] ?? ''] ?? Number(m[2]))],
+  ['q', /^Q([1-4])$/i, m => Number(m[1])],
+  ['q', /^第([1-4一二三四])季度$/, m => CN_QUARTER[m[1] ?? ''] ?? Number(m[1])],
+  ['m', /^(\d{1,2})月$/, m => date('0', m[1])],
+  ['year', /^(\d{4})年?$/, m => Number(m[1])],
+]
+
+function date(year = '', month = '', day = '1'): number | null {
+  const [y, mo, d] = [Number(year), Number(month), Number(day)]
+  return mo >= 1 && mo <= 12 && d >= 1 && d <= 31 ? (y * 12 + mo) * 32 + d : null
+}
+
+/** One label's scale and position, or null when it is not a recognized time/sequence label. */
+function axisKey(raw: string): { readonly scale: string; readonly key: number } | null {
+  const text = raw.trim()
+  for (const [scale, pattern, key] of AXIS_FORMATS) {
+    const match = pattern.exec(text)
+    if (match !== null) {
+      const value = key(match)
+      return value === null ? null : { scale, key: value }
+    }
+  }
+  const name = text.toLowerCase().replace(/\.$/, '')
+  const month = name.length >= 3 ? MONTH_NAMES.findIndex(full => full.startsWith(name)) : -1
+  if (month >= 0) return { scale: 'm', key: month + 1 }
+  const cell = parseCell(text)
+  return cell.kind === 'number' ? { scale: `number${cell.unit}`, key: cell.value } : null
+}
+
+/**
+ * Whether labels read as one time/sequence axis in the given row order. Rows
+ * are never reordered: a shuffled, repeated, or mixed-format axis is not ordered.
+ * @param cells - the column's cell texts, in row order.
+ * @returns true only for at least two labels on one scale, strictly increasing.
+ */
+export function isOrderedAxis(cells: readonly string[]): boolean {
+  const keys = cells.map(axisKey)
+  return keys.length >= 2 && keys.every((entry, index) => {
+    const previous = index === 0 ? null : keys[index - 1]
+    return entry !== null && (previous == null || (previous.scale === entry.scale && previous.key < entry.key))
+  })
 }
 
 /**
@@ -66,6 +121,7 @@ export function analyzeColumn(cells: readonly string[]): ColumnAnalysis {
       ? { unit: numbers[0]?.unit ?? '|', values: parsed.map(cell => cell.kind === 'number' ? cell.value : null) }
       : null,
     categorical,
+    ordered: categorical && isOrderedAxis(cells),
   }
 }
 
@@ -77,4 +133,56 @@ export function analyzeColumn(cells: readonly string[]): ColumnAnalysis {
 export function displayUnit(unit: string): string {
   const [prefix = '', suffix = ''] = unit.split('|')
   return `${prefix}${suffix}`
+}
+
+/** A chart's value axis: bounds, labeled ticks, and whether it includes zero. */
+export interface ValueAxis {
+  readonly min: number
+  readonly max: number
+  readonly ticks: readonly number[]
+  readonly zeroBased: boolean
+}
+
+function niceStep(span: number): number {
+  const raw = span / 5
+  const power = 10 ** Math.floor(Math.log10(raw))
+  const unit = raw / power
+  return (unit <= 1 ? 1 : unit <= 2 ? 2 : unit <= 5 ? 5 : 10) * power
+}
+
+/**
+ * Value axis of a chart. Bars always include zero so bar length stays
+ * proportional. A line zooms to its data only when every value sits on one
+ * side of zero and their spread is under a third of the largest magnitude
+ * (e.g. 95→100), where a zero baseline would flatten the trend; every tick
+ * stays labeled so the non-zero start is visible.
+ * @param values - visible, non-missing values.
+ * @param chart - chart kind.
+ * @returns a finite axis with a bounded tick list.
+ */
+export function valueAxis(values: readonly number[], chart: 'bar' | 'line'): ValueAxis {
+  const finite = values.filter(Number.isFinite)
+  let low = finite.length === 0 ? 0 : Math.min(...finite)
+  let high = finite.length === 0 ? 0 : Math.max(...finite)
+  const magnitude = Math.max(Math.abs(low), Math.abs(high))
+  const positive = low > 0
+  const zoom = chart === 'line' && (positive || high < 0) && (high - low) * 3 < magnitude
+  if (zoom) {
+    const pad = high > low ? (high - low) * 0.1 : magnitude * 0.05
+    low -= pad
+    high += pad
+  } else {
+    low = Math.min(0, low)
+    high = Math.max(0, high)
+  }
+  if (low === high) high = low + 1
+  const step = niceStep(high - low)
+  let min = Math.floor(low / step) * step
+  let max = Math.ceil(high / step) * step
+  // Padding never pushes a one-sided series across zero.
+  if (zoom && positive) min = Math.max(0, min)
+  else if (zoom) max = Math.min(0, max)
+  const ticks: number[] = []
+  for (let tick = min; tick <= max + step / 2; tick += step) ticks.push(Number(tick.toPrecision(12)))
+  return { min, max, ticks, zeroBased: min <= 0 && max >= 0 }
 }

@@ -23,8 +23,8 @@ const auxCalls = () => readFileSync(mockLog, 'utf8').trim().split('\n').filter(B
 const browser = await chromium.launch({ executablePath })
 const errors = []
 
-async function open(colorScheme = 'light') {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 1000 }, locale: 'zh-CN', colorScheme })
+async function open(colorScheme = 'light', device = { viewport: { width: 1280, height: 1000 } }) {
+  const context = await browser.newContext({ ...device, locale: 'zh-CN', colorScheme })
   const page = await context.newPage()
   page.on('pageerror', error => { errors.push(error.message) })
   await page.goto(url)
@@ -35,16 +35,22 @@ async function open(colorScheme = 'light') {
 async function ask(page, prompt) {
   await page.getByText('新会话', { exact: true }).first().click()
   await page.waitForTimeout(800)
+  const picker = page.getByRole('button', { name: '打开', exact: true })
   const send = async () => {
     const box = page.getByRole('textbox').last()
     await box.click()
+    // A fresh profile has no workspace yet: clicking the composer opens the picker.
+    if (await picker.isVisible().catch(() => false)) {
+      await picker.click()
+      await page.waitForTimeout(800)
+      await box.click()
+    }
     await box.fill('')
     await box.pressSequentially(prompt)
     await page.keyboard.press('Enter')
   }
   await send()
   await page.waitForTimeout(1200)
-  const picker = page.getByRole('button', { name: '打开', exact: true })
   if (await picker.isVisible().catch(() => false)) {
     await picker.click()
     await page.waitForTimeout(800)
@@ -71,6 +77,9 @@ if (scenario === 'main') {
   const originalText = await page.locator('table:not(.diu-root table)').first().textContent()
   check('A3 original Markdown table still rendered verbatim', originalTables >= 1 && originalText.includes('1,200') && originalText.includes('—'))
   await region.screenshot({ path: join(outDir, 'A-ready.png') })
+  check('A3b charted table is not repeated as a separate table', await region.locator('.diu-body > .diu-table').count() === 0)
+  // The source rows stay reachable, sortable, and filterable through the chart.
+  await region.getByRole('button', { name: '查看数据' }).click()
 
   const header = region.locator('.diu-table').first().getByRole('button', { name: /营收/ })
   await header.click()
@@ -96,11 +105,10 @@ if (scenario === 'main') {
     return Number(rect.getAttribute('y')) === Number(zero?.getAttribute('y1'))
   }))
 
-  const legend = region.getByRole('button', { name: /利润/ }).last()
+  const legend = region.locator('.diu-legend-item', { hasText: '利润' })
   await legend.click()
   check('A12 legend toggle hides a series', (await legend.getAttribute('aria-pressed')) === 'false' && await region.locator('.diu-bars').count() === 1)
   await legend.click()
-  await region.getByRole('button', { name: '查看数据' }).click()
   check('A13 view data shows the source table', await region.locator('figure .diu-table').count() === 1)
   await region.screenshot({ path: join(outDir, 'A-view-data.png') })
 
@@ -126,6 +134,9 @@ if (scenario === 'main') {
   const d = await lineRegion.locator('.diu-line path').first().getAttribute('d')
   const markers = await lineRegion.locator('.diu-line > :not(path:first-child)').count()
   check('L1 line chart breaks at the missing value', (d.match(/M/g) ?? []).length === 2 && markers === 5, `d=${d} markers=${markers}`)
+  const ticks = await lineRegion.locator('.diu-grid text').allTextContents()
+  check('L2 compact line zooms with labeled ticks and says where the axis starts',
+    ticks[0] !== '0' && await lineRegion.getByText(`纵轴从 ${ticks[0]} 起`).isVisible(), JSON.stringify(ticks))
   await lineRegion.screenshot({ path: join(outDir, 'L-line.png') })
 
   // C. Greeting → zero calls, no region.
@@ -160,6 +171,29 @@ if (scenario === 'main') {
   check('E1 dark theme tokens applied', isDark && color === 'rgb(122, 162, 247)', `dark=${isDark} fill=${color}`)
   await darkRegion.screenshot({ path: join(outDir, 'E-dark.png') })
   await dark.close()
+} else if (scenario === 'touch') {
+  // Phone-width touch device: tapping a point shows its values inside the viewport.
+  // Ask at desktop width (the host sidebar is collapsed on phones), then narrow.
+  const page = await open('light', { viewport: { width: 1280, height: 1000 }, hasTouch: true })
+  await ask(page, '请给出2025年各季度经营数据（触屏）')
+  await page.setViewportSize({ width: 375, height: 800 })
+  const region = page.locator('.diu-region').last()
+  await region.locator('.diu-hit').first().waitFor({ timeout: 25000 })
+  const hits = region.locator('.diu-hit')
+  const inside = async () => {
+    const box = await region.locator('.diu-tooltip').boundingBox({ timeout: 1000 }).catch(() => null)
+    return box !== null && box.x >= 0 && box.x + box.width <= 375
+  }
+  for (const [name, index, category] of [['first', 0, 'Q1'], ['last', 3, 'Q4']]) {
+    await hits.nth(index).tap()
+    const text = await region.locator('.diu-tooltip').textContent({ timeout: 1000 }).catch(() => null)
+    check(`T1 tap on ${name} point shows its values`, text?.includes(category) === true, text ?? 'no tooltip')
+    check(`T2 tooltip of ${name} point stays inside a 375px viewport`, text !== null && await inside(),
+      JSON.stringify(await region.locator('.diu-tooltip').boundingBox({ timeout: 1000 }).catch(() => null)))
+    await region.screenshot({ path: join(outDir, `T-tap-${name}.png`) })
+  }
+  check('T3 region causes no horizontal page scroll', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+  await page.close()
 } else if (scenario === 'reload') {
   // Reload and a second window read the stored view; neither calls the model again.
   const page = await open()

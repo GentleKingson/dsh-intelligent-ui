@@ -109,7 +109,7 @@ describe('IntelligentUiService', () => {
     const result = await settle(service, ref)
     expect(result.status).toBe('ready')
     if (result.status !== 'ready') return
-    expect(result.view.items.map(item => item.type)).toEqual(['table', 'chart'])
+    expect(result.view.items.map(item => item.type)).toEqual(['chart'])
     expect(result.usage).toMatchObject({ inputTokens: 40, outputTokens: 12 })
     expect(calls).toHaveLength(1)
     expect(calls[0]?.tools).toBeUndefined()
