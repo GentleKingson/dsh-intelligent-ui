@@ -34,9 +34,11 @@ async function open(colorScheme = 'light', device = { viewport: { width: 1280, h
   return page
 }
 
-async function ask(page, prompt, wait = true) {
-  await page.getByText('新会话', { exact: true }).first().click()
-  await page.waitForTimeout(800)
+async function ask(page, prompt, wait = true, fresh = true) {
+  if (fresh) {
+    await page.getByText('新会话', { exact: true }).first().click()
+    await page.waitForTimeout(800)
+  }
   const picker = page.getByRole('button', { name: '打开', exact: true })
   const send = async () => {
     const box = page.getByRole('textbox').last()
@@ -330,9 +332,10 @@ if (scenario === 'main') {
   await second.close()
   await page.close()
 } else if (scenario === 'real') {
-  // Stage B with a real model: measures, never fakes. One fresh session per prompt; prints one JSON line per run.
+  // Stage B with a real model: measures, never fakes. One fresh session per case; prints one JSON line per run.
+  // A case's `prompt` may be a list of follow-up turns sent in the same session; `expect` is view, plain, or either.
   const prompts = JSON.parse(readFileSync(process.env.PROMPTS, 'utf8'))
-  for (const [index, { kind, prompt }] of prompts.entries()) {
+  for (const [index, { kind, prompt, expect = 'either' }] of prompts.entries()) {
     const page = await open()
     await page.evaluate(() => {
       const timeline = []
@@ -345,11 +348,23 @@ if (scenario === 'main') {
         if (last === undefined || last.live !== live || last.streaming !== streaming || last.tail !== tail) timeline.push({ at: Math.round(performance.now()), live, streaming, tail })
       }, 20)
     })
-    const sent = await page.evaluate(() => Math.round(performance.now()))
-    await ask(page, prompt, false)
-    const end = page.getByText(/已完成，用时|本轮运行失败|已停止/).last()
-    const ok = await end.waitFor({ timeout: 240000 }).then(() => true, () => false)
-    await page.waitForTimeout(1500)
+    const turns = [prompt].flat()
+    const end = page.getByText(/已完成，用时|本轮运行失败|已停止/)
+    const tailsPerTurn = []
+    let sent = 0
+    let ok = true
+    for (const [turn, text] of turns.entries()) {
+      const done = await end.count()
+      sent = await page.evaluate(() => Math.round(performance.now()))
+      await ask(page, text, false, turn === 0)
+      ok = false
+      for (let waited = 0; waited < 240000 && !ok; waited += 500) {
+        await page.waitForTimeout(500)
+        ok = await end.count() > done
+      }
+      await page.waitForTimeout(1500)
+      tailsPerTurn.push(await page.locator('[data-diu-inline-tail]').count())
+    }
     const timeline = await page.evaluate(() => globalThis.diuTimeline)
     const tail = page.locator('[data-diu-inline-tail]').last()
     const hasTail = await tail.count() > 0
@@ -357,8 +372,9 @@ if (scenario === 'main') {
     const preparing = timeline.find(snapshot => snapshot.streaming)
     const settled = timeline.find(snapshot => snapshot.tail > 0)
     const row = {
-      index, kind, finished: ok ? (await end.textContent()).slice(0, 40) : 'timeout',
+      index, kind, expect, finished: ok ? (await end.last().textContent()).slice(0, 40) : 'timeout',
       viewShown: hasTail,
+      tailsPerTurn,
       items: hasTail ? await tail.locator('.diu-body > *').evaluateAll(nodes => nodes.map(node => node.className.replace('diu-', ''))) : [],
       firstItemMarkdown: hasTail ? await tail.locator('.diu-body > *').first().evaluate(node => node.classList.contains('diu-md') ? node.textContent.slice(0, 60) : null) : null,
       streamedBeforeComplete: first !== undefined && first.streaming,
