@@ -49,7 +49,7 @@ function View({ items, t }: { items: readonly IntelligentUiItem[]; t: ToolViewPr
  */
 export function InlineToolView(props: ToolViewProps) {
   return (
-    <div className="diu-root" data-diu-inline={props.callId}>
+    <div className="diu-root diu-inline" data-diu-inline={props.callId}>
       {props.phase === 'preparing' ? <Preparing {...props} /> : <Settled {...props} />}
     </div>
   )
@@ -125,7 +125,7 @@ export function InlineTail({ turn, useToolCalls, t }: InlineTailProps) {
   return (
     <>
       {views.map(view => (
-        <div key={view.callId} className="diu-root" data-diu-inline-tail={view.callId}>
+        <div key={view.callId} className="diu-root diu-inline" data-diu-inline-tail={view.callId}>
           <View items={view.items} t={t} />
         </div>
       ))}

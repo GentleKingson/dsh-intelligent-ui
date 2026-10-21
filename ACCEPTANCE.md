@@ -369,3 +369,30 @@ smart-auto 的总量偏高，主要来自 2 次运行：模型自行调用 `bash
 截图：`validation/screenshots/inline-real-options.png`。
 
 **结论**：放宽后，inline-stream 在这组提示词上的覆盖面与 smart-auto 相当，而且不需要辅助调用。Desktop 仍为 NOT_RUN。
+
+## inline-stream 展示优化（PR-A：只改样式，不动协议）
+
+**改动**：只调整前端展示，不改 schema、提示词或 Host。除下面标注的两项外，其余样式只对 inline-stream 视图生效（`.diu-inline`），smart-auto 不变。
+
+- **去掉工具面板感**：视图不再有外边框和内边距；“交互视图”折叠条降为 12px 次要文字。折叠和关闭功能保留。
+- **正文可读性**：视图正文 14px；Markdown 项不再用 compact 变体的 13px 灰字，改为继承主文字颜色；首项结论 15px。
+- **小表格**：6 行及以下的表格隐藏筛选行，表头仍可排序。
+- **卡片网格**（两种模式都生效）：改为 `auto-fit` 加 `minmax(min(100%,180px),1fr)`。3 张卡片在 680px 宽度下并排；窄屏单列，不溢出。
+- **图表**（两种模式都生效）：按容器的实际宽度绘制，不再固定 640 宽后整体缩放，所以窄屏下坐标轴文字保持 11px。横轴标签数量随宽度减少，每个标签至少 40px。
+
+**验证**（mock、Web、Chromium）：
+- inline-stream：`inline` 16/16、`inline-reload` 4/4、`inline-ptc` 3/3。
+- smart-auto（共用 `View.tsx`）：`main` 27/27、`touch` 6/6、`reload` 4/4。
+- `typecheck` 通过，测试 110/110。
+
+截图分 1280 浅色、390 手机、1280 深色三种，均无横向溢出：
+- `validation/screenshots/inline-polish-desktop.png`
+- `validation/screenshots/inline-polish-phone.png`
+- `validation/screenshots/inline-polish-dark.png`
+
+对比基线是 `inline-N-settled.png`。
+
+**未做**：
+- 没有用真实模型重跑，因为提示词和 schema 都没变。
+- Desktop 仍为 NOT_RUN。
+- 手机上，3 列表格在表格内部横向滚动，这是原有行为。

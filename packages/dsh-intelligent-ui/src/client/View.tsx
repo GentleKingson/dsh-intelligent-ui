@@ -3,7 +3,7 @@
  * shows was copied from that answer by the Host; interactions are local only.
  */
 
-import { Component, useId, useMemo, useState } from 'react'
+import { Component, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
@@ -100,6 +100,9 @@ function CardView({ title, markdown, t }: { title: string; markdown: string; t: 
 
 type SortDir = 'ascending' | 'descending'
 
+/** Tables this short may hide their filter row; sorting stays on the headers. */
+const SMALL_ROWS = 6
+
 function compareCells(left: string, right: string): number {
   const a = parseCell(left)
   const b = parseCell(right)
@@ -133,7 +136,7 @@ export function TableView({ table, t }: { table: IntelligentUiTableData; t: T })
     setSort(sort?.column !== column ? { column, dir: 'ascending' } : sort.dir === 'ascending' ? { column, dir: 'descending' } : null)
   }
   return (
-    <div className="diu-table">
+    <div className="diu-table" data-small={table.rows.length <= SMALL_ROWS || undefined}>
       <div className="diu-controls">
         <label htmlFor={filterId} className="diu-sr">{t('table.filter')}</label>
         <input id={filterId} type="search" value={filter} placeholder={t('table.filterPlaceholder')}
@@ -180,10 +183,12 @@ function alignOf(table: IntelligentUiTableData, column: number): 'left' | 'cente
 }
 
 const WIDTH = 640
+const MIN_WIDTH = 240
 const HEIGHT = 280
 const MARGIN = { top: 16, right: 16, bottom: 44, left: 60 }
 const DASHES = ['', '6 3', '2 3', '8 3 2 3']
 const MAX_X_LABELS = 12
+const X_LABEL_SPACING = 40
 
 function formatNumber(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 20 })
@@ -209,16 +214,28 @@ export function Chart({ item, t }: { item: IntelligentUiChartItem; t: T }) {
   const [active, setActive] = useState<number | null>(null)
   const [showData, setShowData] = useState(false)
   const dataId = useId()
+  // Draw at the rendered width so axis text keeps its size on narrow screens.
+  const plotRef = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(WIDTH)
+  useEffect(() => {
+    const node = plotRef.current
+    if (node === null || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry !== undefined && entry.contentRect.width > 0) setWidth(Math.max(MIN_WIDTH, Math.round(entry.contentRect.width)))
+    })
+    observer.observe(node)
+    return () => { observer.disconnect() }
+  }, [])
   const visible = item.series.map((series, index) => ({ series, index })).filter(entry => !hidden.has(entry.index))
   const values = visible.flatMap(entry => entry.series.values).filter((value): value is number => value !== null)
   const { min, max, ticks, zeroBased } = valueAxis(values, item.chart)
-  const plotW = WIDTH - MARGIN.left - MARGIN.right
+  const plotW = width - MARGIN.left - MARGIN.right
   const plotH = HEIGHT - MARGIN.top - MARGIN.bottom
   const count = item.categories.length
   const band = plotW / count
   const y = (value: number): number => MARGIN.top + (max - value) / (max - min) * plotH
   const center = (index: number): number => MARGIN.left + band * (index + 0.5)
-  const labelEvery = Math.ceil(count / MAX_X_LABELS)
+  const labelEvery = Math.ceil(count / Math.max(2, Math.min(MAX_X_LABELS, Math.floor(plotW / X_LABEL_SPACING))))
   const toggle = (index: number): void => {
     const next = new Set(hidden)
     if (next.has(index)) next.delete(index)
@@ -256,13 +273,13 @@ export function Chart({ item, t }: { item: IntelligentUiChartItem; t: T }) {
           </button>
         ))}
       </div>
-      <div className="diu-plot">
-        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={label}
+      <div className="diu-plot" ref={plotRef}>
+        <svg viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label={label}
           // A tap ends with a synthetic leave; only a mouse/pen leaving hides the tooltip.
           onPointerLeave={(event) => { if (event.pointerType !== 'touch') setActive(null) }}>
           {ticks.map(tick => (
             <g key={tick} className="diu-grid">
-              <line x1={MARGIN.left} x2={WIDTH - MARGIN.right} y1={y(tick)} y2={y(tick)} className={tick === 0 ? 'diu-zero' : undefined} />
+              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(tick)} y2={y(tick)} className={tick === 0 ? 'diu-zero' : undefined} />
               <text x={MARGIN.left - 6} y={y(tick)} dy="0.32em" textAnchor="end">{formatNumber(tick)}</text>
             </g>
           ))}
@@ -314,9 +331,9 @@ export function Chart({ item, t }: { item: IntelligentUiChartItem; t: T }) {
         </svg>
         {active !== null && (
           <div className="diu-tooltip" role="tooltip"
-            style={center(active) > WIDTH / 2
-              ? { right: `calc(${100 - center(active) / WIDTH * 100}% + 6px)` }
-              : { left: `calc(${center(active) / WIDTH * 100}% + 6px)` }}>
+            style={center(active) > width / 2
+              ? { right: `calc(${100 - center(active) / width * 100}% + 6px)` }
+              : { left: `calc(${center(active) / width * 100}% + 6px)` }}>
             <strong>{item.categories[active]}</strong>
             {visible.map(({ series, index }) => {
               const value = series.values[active]
