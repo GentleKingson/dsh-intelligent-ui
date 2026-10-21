@@ -76,8 +76,12 @@ export function readProgram(output: string, index: SourceIndex): ProgramOutcome 
   if ((body.match(/"[A-Za-z]+"\s*:/g) ?? []).length !== countKeys(parsed.data)) {
     return { kind: 'invalid', detail: 'duplicate keys' }
   }
+  // A chart already discloses its source table ("view data"), so a separate
+  // table item for the same source would show the same rows twice.
+  const charted = new Set(parsed.data.items.flatMap(item => item.type === 'chart' ? [item.table] : []))
+  const items = parsed.data.items.filter(item => item.type !== 'table' || !charted.has(item.table))
   try {
-    return { kind: 'view', view: { items: parsed.data.items.map(item => resolveItem(item, index)) } }
+    return { kind: 'view', view: { items: items.map(item => resolveItem(item, index)) } }
   } catch (error: unknown) {
     if (error instanceof BindingError) return { kind: 'invalid', detail: error.message }
     throw error
@@ -137,6 +141,8 @@ function resolveItem(item: Program['items'][number], index: SourceIndex): Intell
       distinct([item.x, ...item.series], 'chart column')
       const x = source.columns.find(column => column.id === item.x)
       if (x === undefined || !x.analysis.categorical) throw new BindingError(`column ${item.x} is not a category axis`)
+      // A line implies a trend; unordered categories may only be compared as bars.
+      if (item.chart === 'line' && !x.analysis.ordered) throw new BindingError(`column ${item.x} is not an ordered time/sequence axis`)
       const series = item.series.map((id) => {
         const column = source.columns.find(candidate => candidate.id === id)
         if (column?.analysis.numeric == null) throw new BindingError(`column ${id} is not a same-unit numeric column`)

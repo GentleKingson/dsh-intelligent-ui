@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeColumn, parseCell } from '../src/numeric.ts'
+import { analyzeColumn, isOrderedAxis, parseCell, valueAxis } from '../src/numeric.ts'
 import { readProgram } from '../src/program.ts'
 import { screen } from '../src/smart-auto.ts'
 import { buildSourceIndex } from '../src/source-index.ts'
@@ -44,6 +44,52 @@ describe('numeric fidelity', () => {
   })
 })
 
+describe('chart axes', () => {
+  it.each([
+    [['Q1', 'Q2', 'Q3']],
+    [['2026-01', '2026-02', '2026-03']],
+    [['1月', '2月', '3月']],
+    [['2024', '2025年', '2026']],
+    [['2025 Q4', '2026 Q1']],
+    [['Jan', 'Feb', 'Mar']],
+  ])('accepts %j as an ordered line axis', (cells) => {
+    expect(isOrderedAxis(cells)).toBe(true)
+  })
+
+  it.each([
+    [['A', 'B', 'C']],
+    [['Q2', 'Q1', 'Q3']],
+    [['Q1', 'Q1', 'Q2']],
+    [['Q1', '2026-02']],
+    [['2026-13', '2026-14']],
+  ])('rejects %j as a line axis', (cells) => {
+    expect(isOrderedAxis(cells)).toBe(false)
+  })
+
+  it('zooms a compact line, keeps zero otherwise, and never yields non-finite ticks', () => {
+    const compact = valueAxis([95, 97, 100], 'line')
+    expect(compact.zeroBased).toBe(false)
+    expect(compact.min).toBeGreaterThan(0)
+    expect(compact.min).toBeLessThan(95)
+    expect(compact.max).toBeGreaterThanOrEqual(100)
+    expect(valueAxis([2.5, 9.5], 'line').min).toBe(0)
+    expect(valueAxis([95, 97, 100], 'bar').min).toBe(0)
+    const mixed = valueAxis([-30, 80, 120], 'bar')
+    expect(mixed.min).toBeLessThan(-30)
+    expect(mixed.ticks).toContain(0)
+    expect(valueAxis([-100, -97], 'line').max).toBeLessThanOrEqual(0)
+    for (const values of [[], [0, 0], [5, 5], [-5, -5], [0.0001, 0.0002], [1e12, 1e12 + 1]]) {
+      for (const chart of ['bar', 'line'] as const) {
+        const axis = valueAxis(values, chart)
+        expect(axis.ticks.length).toBeGreaterThan(1)
+        expect(axis.ticks.length).toBeLessThan(20)
+        expect(axis.ticks.every(Number.isFinite)).toBe(true)
+        for (const value of values) expect(value >= axis.min && value <= axis.max).toBe(true)
+      }
+    }
+  })
+})
+
 describe('program validation (fails closed)', () => {
   const index = buildSourceIndex(TABLE_ANSWER)
   const table = '{"version":1,"items":[{"type":"table","table":"t0"}]}'
@@ -60,6 +106,22 @@ describe('program validation (fails closed)', () => {
       { name: '利润', values: [-30, 120, 80, 310] },
     ])
     expect(chart.unit).toBe('$')
+  })
+
+  it('shows a charted table once, through the chart; another table stays', () => {
+    const two = buildSourceIndex(`${TABLE_ANSWER}\n\n| 地区 | 门店 |\n| --- | --- |\n| 华东 | 12 |\n| 华南 | 9 |`)
+    const outcome = readProgram('{"version":1,"items":[{"type":"table","table":"t0"},{"type":"chart","table":"t0","chart":"line","x":"c0","series":["c2"]},{"type":"table","table":"t1"}]}', two)
+    if (outcome.kind !== 'view') throw new Error(JSON.stringify(outcome))
+    expect(outcome.view.items.map(item => item.type)).toEqual(['chart', 'table'])
+    const [chart, table] = outcome.view.items
+    expect(chart?.type === 'chart' && chart.table.rows).toHaveLength(4)
+    expect(table?.type === 'table' && table.table.headers).toEqual(['地区', '门店'])
+  })
+
+  it('draws unordered categories only as bars', () => {
+    const shops = buildSourceIndex('| 门店 | 销量 |\n| --- | --- |\n| A | 3 |\n| B | 5 |\n| C | 4 |')
+    expect(readProgram('{"version":1,"items":[{"type":"chart","table":"t0","chart":"bar","x":"c0","series":["c1"]}]}', shops).kind).toBe('view')
+    expect(readProgram('{"version":1,"items":[{"type":"chart","table":"t0","chart":"line","x":"c0","series":["c1"]}]}', shops)).toMatchObject({ kind: 'invalid' })
   })
 
   it('accepts SKIP and exactly one enclosing json fence', () => {

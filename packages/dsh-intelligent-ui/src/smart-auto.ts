@@ -76,7 +76,7 @@ export const SYSTEM_PROMPT = [
   '  {"type":"markdown","blocks":["b0"]}  — short explanatory blocks worth keeping next to the view (1-12 block ids)',
   '  {"type":"cards","cards":[{"source":["b2","b3"]},{"source":["b4i0"]}]}  — 2-12 cards for independent items or compared options. A card whose first id is a heading uses that heading as its title and the following ids as its body; otherwise the first block is both title source and body.',
   '  {"type":"table","table":"t0"}  — a sortable, filterable view of a source table',
-  '  {"type":"chart","table":"t0","chart":"bar"|"line","x":"c0","series":["c1"]}  — only when x is a category or time column (category=true) and every series column has numeric != null with the SAME unit; line only for ordered time/sequence; at most 4 series',
+  '  {"type":"chart","table":"t0","chart":"bar"|"line","x":"c0","series":["c1"]}  — only when x is a category or time column (category=true) and every series column has numeric != null with the SAME unit; "line" only when x has lineEligible=true (an ordered time/sequence), otherwise "bar"; at most 4 series. A chart already lets the reader open its source table, so never add a separate table item for the same table.',
   '',
   'Rules: use only ids present in the input; never repeat a block id; do not convert every paragraph into cards; prefer a table for structured rows and add a chart only when it shows a comparison or trend; one or two good components are better than many.',
 ].join('\n')
@@ -102,6 +102,7 @@ export function framePrompt(index: SourceIndex, hints: readonly CandidateHint[])
       id: column.id,
       header: column.header,
       category: column.analysis.categorical,
+      lineEligible: column.analysis.ordered,
       numeric: column.analysis.numeric === null ? null : { unit: displayUnit(column.analysis.numeric.unit) },
     })),
     sampleRows: table.data.rows.slice(0, 5),

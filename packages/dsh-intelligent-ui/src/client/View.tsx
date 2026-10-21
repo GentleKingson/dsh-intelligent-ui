@@ -10,7 +10,7 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   IntelligentUiCardsItem, IntelligentUiChartItem, IntelligentUiItem, IntelligentUiTableData, IntelligentUiView,
 } from '../types.ts'
-import { parseCell } from '../numeric.ts'
+import { parseCell, valueAxis } from '../numeric.ts'
 import type { NS } from './locales.ts'
 
 type T = TranslateNS<typeof NS>
@@ -185,13 +185,6 @@ const MARGIN = { top: 16, right: 16, bottom: 44, left: 60 }
 const DASHES = ['', '6 3', '2 3', '8 3 2 3']
 const MAX_X_LABELS = 12
 
-function niceStep(span: number): number {
-  const raw = span / 5
-  const power = 10 ** Math.floor(Math.log10(raw))
-  const unit = raw / power
-  return (unit <= 1 ? 1 : unit <= 2 ? 2 : unit <= 5 ? 5 : 10) * power
-}
-
 function formatNumber(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 20 })
 }
@@ -218,14 +211,7 @@ export function Chart({ item, t }: { item: IntelligentUiChartItem; t: T }) {
   const dataId = useId()
   const visible = item.series.map((series, index) => ({ series, index })).filter(entry => !hidden.has(entry.index))
   const values = visible.flatMap(entry => entry.series.values).filter((value): value is number => value !== null)
-  let min = Math.min(0, ...values)
-  let max = Math.max(0, ...values)
-  if (min === max) max = min + 1
-  const step = niceStep(max - min)
-  min = Math.floor(min / step) * step
-  max = Math.ceil(max / step) * step
-  const ticks: number[] = []
-  for (let tick = min; tick <= max + step / 2; tick += step) ticks.push(Number(tick.toPrecision(12)))
+  const { min, max, ticks, zeroBased } = valueAxis(values, item.chart)
   const plotW = WIDTH - MARGIN.left - MARGIN.right
   const plotH = HEIGHT - MARGIN.top - MARGIN.bottom
   const count = item.categories.length
@@ -256,6 +242,7 @@ export function Chart({ item, t }: { item: IntelligentUiChartItem; t: T }) {
       <figcaption>
         <span>{label}</span>
         {item.unit !== '' && <span className="diu-muted">{t('chart.unit', { unit: item.unit })}</span>}
+        {!zeroBased && <span className="diu-muted">{t('chart.axisFrom', { min: formatNumber(min) })}</span>}
       </figcaption>
       <div className="diu-legend" role="group" aria-label={t('chart.legend')}>
         {item.series.map((series, index) => (
@@ -270,7 +257,9 @@ export function Chart({ item, t }: { item: IntelligentUiChartItem; t: T }) {
         ))}
       </div>
       <div className="diu-plot">
-        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={label} onMouseLeave={() => { setActive(null) }}>
+        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={label}
+          // A tap ends with a synthetic leave; only a mouse/pen leaving hides the tooltip.
+          onPointerLeave={(event) => { if (event.pointerType !== 'touch') setActive(null) }}>
           {ticks.map(tick => (
             <g key={tick} className="diu-grid">
               <line x1={MARGIN.left} x2={WIDTH - MARGIN.right} y1={y(tick)} y2={y(tick)} className={tick === 0 ? 'diu-zero' : undefined} />
@@ -318,13 +307,16 @@ export function Chart({ item, t }: { item: IntelligentUiChartItem; t: T }) {
           {item.categories.map((_, index) => (
             <rect key={index} className="diu-hit" x={MARGIN.left + band * index} y={MARGIN.top} width={band} height={plotH}
               tabIndex={0} role="img" aria-label={pointText(index)}
-              onMouseEnter={() => { setActive(index) }} onFocus={() => { setActive(index) }} onBlur={() => { setActive(null) }} />
+              onMouseEnter={() => { setActive(index) }} onFocus={() => { setActive(index) }} onBlur={() => { setActive(null) }}
+              onClick={() => { setActive(index) }} />
           ))}
           {active !== null && <line className="diu-cursor" x1={center(active)} x2={center(active)} y1={MARGIN.top} y2={MARGIN.top + plotH} />}
         </svg>
         {active !== null && (
           <div className="diu-tooltip" role="tooltip"
-            style={{ left: `${center(active) / WIDTH * 100}%`, transform: center(active) > WIDTH / 2 ? 'translateX(-105%)' : 'translateX(5%)' }}>
+            style={center(active) > WIDTH / 2
+              ? { right: `calc(${100 - center(active) / WIDTH * 100}% + 6px)` }
+              : { left: `calc(${center(active) / WIDTH * 100}% + 6px)` }}>
             <strong>{item.categories[active]}</strong>
             {visible.map(({ series, index }) => {
               const value = series.values[active]
