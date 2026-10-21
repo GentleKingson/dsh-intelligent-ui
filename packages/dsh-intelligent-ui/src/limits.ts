@@ -7,6 +7,8 @@ export const LIMITS = {
   inputBytes: 32 * 1024,
   /** Model output accepted as a program, in UTF-8 bytes. */
   programBytes: 16 * 1024,
+  /** `inline-stream` tool arguments accepted as a view, in UTF-8 bytes. */
+  inlineArgsBytes: 64 * 1024,
   /** Output-token cap of the one auxiliary call. */
   outputTokens: 2048,
   /** End-to-end deadline of the auxiliary call. */

@@ -158,3 +158,71 @@ node validation/web-e2e.mjs '<带 token 的 URL>' <输出目录> /tmp/mock.jsonl
 | Web E2E `absent`（卸载后） | 4/4 |
 
 Web E2E 使用的模型仍为本地 mock。B4 真实模型对比与 Desktop 验收仍为 **NOT_RUN**；补测时请直接使用本包，并先核对上面的 SHA-256。
+
+---
+
+# 追加记录：流式工具 UI 第一阶段（`inline-stream`，0.1.3，2026-10-21）
+
+本节为追加内容，上文各节保持原样。新增可选模式 `mode: inline-stream`，默认仍为 `smart-auto`。DSH 固定 `0.2.0-rc.2`（`639ed01`）；复核时上游最新 HEAD 为 `687f282`（2026-10-17），本阶段不跟进。
+
+## 本地门禁（非 GitHub CI）
+
+| 检查 | 结果 |
+| --- | --- |
+| `typecheck` | PASS |
+| `test` | 110 项全部通过（原 85 项，新增 25 项：流式解析、校验与拒绝、注册范围、`concludeTurn`、插件卸载清理，以及 inline 模式不发起辅助调用） |
+| `pack` | PASS。Client 包从 230.57 kB 增至 258.55 kB（gzip 从 51.17 kB 增至 58.77 kB），没有新增运行时依赖 |
+
+## Web E2E
+
+环境：真实 DSH 0.2.0-rc.2 Web 服务，插件从 0.1.3 tgz 安装，模型为本地 mock（`validation/mock-messages-server.mjs`，不是真实模型）。`render_ui` 的参数按每块 24 字符、每块间隔 80 ms 分块流式输出。
+
+| 场景 | 模式 | 结果 |
+| --- | --- | --- |
+| `inline`：流式显示、完成后显示、交互、回退、中断、普通回答 | `inline-stream` | 15/15 |
+| `inline-reload`：刷新和第二个窗口 | `inline-stream` | 4/4 |
+| `absent`，并设置 `INLINE_HISTORY=1` 查看 inline 历史 | `disabled: true` | 5/5 |
+| `main` / `touch` / `reload` | `smart-auto`（默认） | 27/27 / 6/6 / 4/4 |
+| `absent` | `mode: "off"` | 4/4 |
+
+**流式时序**：时间由页面内每 20 ms 采样一次得到，单位为页面时钟 ms。
+
+| 时刻 | 事件 |
+| --- | --- |
+| 9900 | `render_ui` 工具行进入参数生成阶段（preparing） |
+| 10128 | 首个组件可见 |
+| 10764 | 第 2 个组件可见 |
+| 11337 | 第 3 个组件可见 |
+| 11926 | 调用完成，本轮结束，视图移到回合尾部 |
+
+首个组件比调用完成早约 1.8 s。最后一个组件与参数结尾在同一个数据块里到达，所以它与调用完成同时显示。截图：
+
+- `validation/screenshots/inline-N-first-component.png`：截图时已显示 2 个组件，调用仍在生成中；
+- `inline-N-settled.png`：调用完成后的视图；
+- `inline-NR-second-window.png`：第二个窗口恢复的视图。
+
+**回退**：
+
+| 情况 | 行为 | 截图 |
+| --- | --- | --- |
+| 恶意 HTML/脚本、行列不一致、超限（9 个组件） | 工具返回错误，视图不显示，模型第二次请求以 Markdown 作答，没有任何注入标记进入 DOM | — |
+| 非法 JSON | DSH provider 判为 `MALFORMED_RESPONSE`，本轮显示 DSH 自带的失败提示，同一次响应里的前导文字一并丢弃（DSH 行为，插件无法干预） | `inline-F-invalid-json.png` |
+| 中断 | 保留前导文字，不保留视图 | `inline-I-interrupted.png` |
+| 插件禁用 | 历史回合显示前导文字和通用工具卡片 | `inline-X-inline-history.png` |
+
+## 调用次数与开销
+
+以下数据来自 mock 日志。字节数是 HTTP 请求体大小；mock 返回的 token 数是固定值，不能当作真实计量。
+
+| 场景 | smart-auto | inline-stream |
+| --- | --- | --- |
+| 数据型回答 | 2 次请求：主 Agent 70,148 B，加辅助调用 13,894 B（输出上限 2048 tokens） | 1 次请求：主 Agent 73,909 B，视图数据作为工具参数在同一次输出中生成（本例 589 字符） |
+| 普通回答（"你好"） | 1 次，69,993 B | 1 次，73,739 B |
+| 参数被拒绝 | — | 2 次请求（第二次以 Markdown 作答） |
+| 主 Agent 请求的固定开销 | — | 每次 +3,746 B：多 1 个工具 schema，系统提示多 935 字符。按英文约 4 字节/token 估算，约 0.9–1k 输入 tokens，**未经真实分词器验证** |
+
+## 未完成项
+
+- **真实模型流式**：本环境没有可用的真实模型，NOT_RUN。
+- **Desktop**：NOT_RUN。
+- **PTC**：只有单元测试（PTC 和子代理不注册工具、子调度被拒绝），没有 E2E。

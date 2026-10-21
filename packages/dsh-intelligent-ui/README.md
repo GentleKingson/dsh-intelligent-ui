@@ -22,6 +22,7 @@ dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.2.tgz
 | 模式 | 行为 |
 | --- | --- |
 | `smart-auto`（默认） | 每条新完成的根会话最终回答先经过本地规则预筛；判定合适时，额外发起**至多一次**辅助模型调用 |
+| `inline-stream`（可选，0.1.3 起） | 不发起辅助调用。给根会话的主模型注册原生工具 `render_ui` 和一段 Agent 级提示词，由主模型在同一次请求中流式写出视图数据，见下文 |
 | `off` | 不再发起任何新的辅助调用；此前已生成的视图仍可显示 |
 
 在 profile 的 `cordis.patch.yml` 中切换：
@@ -33,6 +34,19 @@ dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.2.tgz
 ```
 
 如果想连已有视图也不显示，就禁用插件（`disabled: true`）或卸载。
+
+## Inline Stream 规则
+
+1. **注册范围**：只注册到以原生方式调用工具的根会话 Agent。子代理不注册；工具以 PTC 方式呈现（`ptc` 或 `both`）的 Agent 也不注册，日志会记录原因。插件不修改用户的工具呈现方式，也不修改 Agent Loop。
+2. **调用方式**：普通回答仍是 Markdown。只有回答主体是结构化数据时，模型才先写 1～3 句 Markdown 结论，再调用一次 `render_ui`。调用成功后本轮结束（`concludeTurn`），不会再追加模型请求。
+3. **流式显示**：调用的参数还在生成时，`tool.call.toolview` 就会增量解析 `useToolCallArgumentsPartial()` 的前缀。只有已闭合、并通过校验的组件才会显示；未闭合的组件不会被解析。
+4. **完成后**：DSH 会折叠已完成回合的过程行。视图改由 `conversation.chat.turnTail` 从该回合的工具节点（`ChatNodeStore.turnDataSource`）重新读取并显示，所以刷新页面、另开窗口、打开历史会话都能恢复，无需额外存储或请求。
+5. **校验**：Host 执行与 Client 显示使用同一套规则：严格 schema；禁止 HTML、图片和脚本链接；每行单元格数必须与表头一致；图表沿用 smart-auto 的数值、单位与有序横轴校验；参数不超过 64 KiB；最多 8 个组件。
+6. **失败回退**：
+   - 参数不通过校验时，工具返回错误，模型改用纯 Markdown 作答，此时多一次请求。
+   - 参数不是合法 JSON 时，DSH 的 provider 会把整条响应判为 `MALFORMED_RESPONSE`，本轮显示 DSH 自带的失败提示。这一行为属于 DSH，插件无法干预。
+   - 用户中断时，保留已输出的前导文字，不保留视图。
+   - 插件禁用或卸载后，历史回合仍显示前导文字和通用工具卡片。
 
 ## Smart Auto 规则
 
@@ -131,6 +145,11 @@ Client 产物 `lib/client.js` 是单个 CJS 浏览器 bundle（按宿主模块�
 
 ## 已知限制
 
+- `inline-stream`：
+  - 每次根会话 Agent 请求都会多带工具 schema 和提示词：mock 实测每次请求多 3,746 字节，系统提示多 935 字符。普通回答也要承担这部分开销。
+  - 视图成功显示后，前导文字随回合折叠，展开后可见。
+  - 只支持原生工具参数流；PTC 不支持。
+  - 未经真实模型验证。
 - Desktop 未验证。真实模型路径也未验证，Web 验证使用的是本地 mock 模型（见 `ACCEPTANCE.md`）。
 - 本地预筛基于启发式规则，可能漏掉少数合适的回答（漏掉时保留原文）。
 - 图表只支持柱状图和折线图，最多 4 个系列且单位必须相同；表格最多 200 行、12 列；每个视图最多 8 个组件。

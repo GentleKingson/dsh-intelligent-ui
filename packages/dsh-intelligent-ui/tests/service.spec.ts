@@ -34,7 +34,7 @@ afterEach(async () => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
-async function boot(root: string, scripts: Script[], mode: 'smart-auto' | 'off' = 'smart-auto') {
+async function boot(root: string, scripts: Script[], mode: 'smart-auto' | 'inline-stream' | 'off' = 'smart-auto') {
   const ctx = new Context()
   contexts.push(ctx)
   const calls: GenerateOptions[] = []
@@ -136,6 +136,13 @@ describe('IntelligentUiService', () => {
   it('off mode makes no calls at all', async () => {
     const { ctx, service, calls } = await boot(tempRoot(), [text(PROGRAM)], 'off')
     expect(await service.read(turn(ctx, 's5', 1))).toEqual({ status: 'absent' })
+    expect(calls).toHaveLength(0)
+  })
+
+  it('inline-stream mode never makes the auxiliary call', async () => {
+    const { ctx, service, calls } = await boot(tempRoot(), [text(PROGRAM)], 'inline-stream')
+    expect(await service.read(turn(ctx, 's5b', 1))).toEqual({ status: 'absent' })
+    await new Promise(resolve => setTimeout(resolve, 20))
     expect(calls).toHaveLength(0)
   })
 

@@ -3,11 +3,12 @@
  * endpoint is the LOCAL MOCK (mock-messages-server.mjs). Prints one PASS/FAIL
  * line per check and writes screenshots to <outDir>.
  *
- * Usage: node web-e2e.mjs <url-with-token> <outDir> <mock.jsonl> [main|reload|absent]
+ * Usage: node web-e2e.mjs <url-with-token> <outDir> <mock.jsonl> [main|touch|reload|absent|inline|inline-reload]
+ * The inline scenarios need the profile patched to `mode: inline-stream`.
  * Requires playwright-core and Chromium (CHROMIUM_PATH).
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium } from 'playwright-core'
 
@@ -18,7 +19,8 @@ const check = (name, ok, detail = '') => {
   results.push({ name, ok })
   console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail === '' ? '' : ` — ${detail}`}`)
 }
-const auxCalls = () => readFileSync(mockLog, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(entry => entry.kind === 'auxiliary')
+const mockEntries = () => !existsSync(mockLog) ? [] : readFileSync(mockLog, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
+const auxCalls = () => mockEntries().filter(entry => entry.kind === 'auxiliary')
 
 const browser = await chromium.launch({ executablePath })
 const errors = []
@@ -32,7 +34,7 @@ async function open(colorScheme = 'light', device = { viewport: { width: 1280, h
   return page
 }
 
-async function ask(page, prompt) {
+async function ask(page, prompt, wait = true) {
   await page.getByText('新会话', { exact: true }).first().click()
   await page.waitForTimeout(800)
   const picker = page.getByRole('button', { name: '打开', exact: true })
@@ -56,7 +58,7 @@ async function ask(page, prompt) {
     await page.waitForTimeout(800)
     await send()
   }
-  await page.getByText('已完成').last().waitFor({ timeout: 20000 })
+  if (wait) await page.getByText('已完成').last().waitFor({ timeout: 20000 })
 }
 
 /** Rows of the first interactive table, first column. */
@@ -212,9 +214,130 @@ if (scenario === 'main') {
   check('R3 no new auxiliary call', auxCalls().length === calls, `${auxCalls().length - calls} new`)
   await second.close()
   await page.close()
+} else if (scenario === 'inline') {
+  const page = await open()
+  const since = (count) => {
+    const entries = mockEntries().slice(count)
+    return { agent: entries.filter(entry => entry.kind === 'agent'), aux: entries.filter(entry => entry.kind === 'auxiliary') }
+  }
+  // Sampled in the page every 20 ms so the timeline does not depend on the driver's round trips.
+  await page.evaluate(() => {
+    const timeline = []
+    globalThis.diuTimeline = timeline
+    const timer = setInterval(() => {
+      const live = document.querySelectorAll('[data-diu-inline] .diu-body > *').length
+      const streaming = [...document.querySelectorAll('[data-diu-inline] .diu-status')].some(node => node.textContent.includes('正在生成交互视图'))
+      const tail = document.querySelectorAll('[data-diu-inline-tail]').length
+      const last = timeline.at(-1)
+      if (last === undefined || last.live !== live || last.streaming !== streaming || last.tail !== tail) timeline.push({ at: Math.round(performance.now()), live, streaming, tail })
+      if (tail > 0) clearInterval(timer)
+    }, 20)
+  })
+
+  // N. Streamed view: components appear one by one while the tool call is still preparing.
+  let count = mockEntries().length
+  await ask(page, '请给出2025年经营数据（流式）', false)
+  await page.locator('[data-diu-inline] .diu-body > *').first().waitFor({ timeout: 20000 })
+  await page.locator('[data-diu-inline]').last().screenshot({ path: join(outDir, 'N-first-component.png') })
+  await page.locator('[data-diu-inline-tail]').last().waitFor({ timeout: 20000 })
+  const timeline = await page.evaluate(() => globalThis.diuTimeline)
+  const first = timeline.find(snapshot => snapshot.live > 0)
+  const settled = timeline.find(snapshot => snapshot.tail > 0)
+  console.log(`   timeline (ms): ${JSON.stringify(timeline)}`)
+  check('N1 first component visible while the call is still streaming', first !== undefined && first.streaming && first.live === 1 && first.tail === 0,
+    `first at ${first?.at}, settled view at ${settled?.at} (+${settled === undefined || first === undefined ? '?' : settled.at - first.at} ms)`)
+  // The last component closes in the same chunk as the arguments, so it shows with the settled call.
+  const streamed = timeline.filter(snapshot => snapshot.streaming && snapshot.live > 0).map(snapshot => snapshot.live)
+  check('N2 components arrive one by one before the call completes', JSON.stringify(streamed) === '[1,2,3]', JSON.stringify(streamed))
+  await page.getByText('已完成').last().waitFor({ timeout: 20000 })
+  const tail = page.locator('[data-diu-inline-tail]').last()
+  await tail.waitFor({ timeout: 10000 })
+  check('N3 settled view stays in the default chat view', await tail.locator('.diu-body > *').count() === 4
+    && await tail.locator('.diu-chart').count() === 1 && await tail.locator('.diu-cards .diu-card').count() === 3)
+  // DSH folds a completed turn's process rows; the lead text before the call is one of them.
+  await page.getByText(/已完成，用时/).last().click()
+  check('N4 lead Markdown answer stays readable in the expanded turn', await page.getByText('2025 年下半年利润改善，详见下方视图。').last().isVisible())
+  await page.getByText(/已完成，用时/).last().click()
+  const header = tail.locator('.diu-table').first().getByRole('button', { name: /营收/ })
+  await header.click()
+  check('N5 settled table is interactive', JSON.stringify(await firstColumn(tail)) === '["Q1","Q2","Q4","Q3"]', JSON.stringify(await firstColumn(tail)))
+  await tail.locator('.diu-hit').nth(3).hover()
+  check('N6 settled chart is interactive', (await tail.locator('.diu-tooltip').textContent()).includes('2,000'))
+  await tail.screenshot({ path: join(outDir, 'N-settled.png') })
+  let calls = since(count)
+  check('N7 one agent request, zero auxiliary calls', calls.agent.length === 1 && calls.aux.length === 0 && calls.agent[0].offersInline,
+    JSON.stringify(calls.agent.map(({ requestBytes, systemChars, tools }) => ({ requestBytes, systemChars, tools }))))
+
+  // F. Rejected arguments never render; the error result lets the model answer in Markdown.
+  for (const [name, prompt] of [['malicious HTML/script', '恶意内容测试'], ['inconsistent rows', '不一致数据测试'], ['over limit', '超限测试']]) {
+    count = mockEntries().length
+    await ask(page, prompt)
+    await page.waitForTimeout(800)
+    calls = since(count)
+    const fallback = page.getByText('工具校验失败，以下以纯 Markdown 作答。').last()
+    check(`F ${name}: no view, readable Markdown fallback`, await page.locator('[data-diu-inline-tail]').count() === 0
+      && await fallback.isVisible() && calls.agent.length === 2 && calls.agent[1].toolResult?.isError === true && calls.aux.length === 0,
+      `agent=${calls.agent.length} aux=${calls.aux.length} tail=${await page.locator('[data-diu-inline-tail]').count()}`)
+  }
+  check('F4 no injected markup in any view', await page.locator('.diu-root script, .diu-root img, .diu-root iframe').count() === 0)
+  // Invalid JSON never reaches the tool: DSH's provider rejects the response and shows a readable turn failure.
+  count = mockEntries().length
+  await ask(page, '坏JSON测试', false)
+  const failure = page.getByText('tool input is invalid JSON').last()
+  await failure.waitFor({ timeout: 20000 })
+  check('F5 invalid JSON: readable failure, no view, no auxiliary call', await failure.isVisible()
+    && await page.locator('[data-diu-inline-tail]').count() === 0 && since(count).aux.length === 0)
+  await page.screenshot({ path: join(outDir, 'F-invalid-json.png') })
+
+  // I. Stop while streaming: shown components stay, nothing settles, the lead text remains.
+  count = mockEntries().length
+  await ask(page, '请给出2025年经营数据（中断）', false)
+  await page.locator('[data-diu-inline] .diu-body > *').first().waitFor({ timeout: 20000 })
+  await page.getByRole('button', { name: '停止生成' }).click()
+  await page.waitForTimeout(2500)
+  check('I1 interrupted call leaves the lead text and no settled view', await page.getByText('2025 年下半年利润改善，详见下方视图。').last().isVisible()
+    && await page.locator('[data-diu-inline-tail]').count() === 0 && since(count).aux.length === 0)
+  await page.screenshot({ path: join(outDir, 'I-interrupted.png') })
+
+  // C. Plain question: plain Markdown, no view, one request.
+  count = mockEntries().length
+  await ask(page, '你好')
+  await page.waitForTimeout(1500)
+  calls = since(count)
+  check('C1 plain answer stays Markdown with one agent request', calls.agent.length === 1 && calls.aux.length === 0
+    && await page.locator('.diu-root').count() === 0, `agent=${calls.agent.length} requestBytes=${calls.agent[0]?.requestBytes}`)
+  await page.close()
+} else if (scenario === 'inline-reload') {
+  // Reload and a second window replay the settled call from the session's own tool nodes.
+  const page = await open()
+  await ask(page, '请给出2025年经营数据（流式，刷新）')
+  await page.locator('[data-diu-inline-tail]').last().waitFor({ timeout: 20000 })
+  const count = mockEntries().length
+  await page.reload()
+  await page.locator('[data-diu-inline-tail] .diu-chart').last().waitFor({ timeout: 15000 })
+  check('NR1 reload restores the view', await page.locator('[data-diu-inline-tail]').count() === 1)
+  const second = await page.context().newPage()
+  second.on('pageerror', error => { errors.push(error.message) })
+  await second.goto(page.url())
+  await second.locator('[data-diu-inline-tail] .diu-chart').last().waitFor({ timeout: 15000 })
+  check('NR2 second window restores the view', await second.locator('[data-diu-inline-tail] .diu-body > *').count() === 4)
+  await second.locator('[data-diu-inline-tail]').last().screenshot({ path: join(outDir, 'NR-second-window.png') })
+  await page.waitForTimeout(1500)
+  check('NR3 restoring makes no model request', mockEntries().length === count)
+  await second.close()
+  await page.close()
 } else {
   // Plugin disabled or mode off: the prompt is answered, nothing is appended, no auxiliary call.
   const page = await open()
+  if (process.env.INLINE_HISTORY === '1') {
+    // The most recent session holds a settled inline-stream turn: its text and arguments stay readable.
+    await page.getByText('经营数据', { exact: true }).first().click()
+    await page.getByText(/已完成，用时/).last().click()
+    const lead = page.getByText('2025 年下半年利润改善，详见下方视图。').last()
+    await lead.waitFor({ timeout: 15000 })
+    check('X0 inline history without the plugin: lead text readable, no view', await lead.isVisible() && await page.locator('.diu-root').count() === 0)
+    await page.screenshot({ path: join(outDir, 'X-inline-history.png') })
+  }
   const before = auxCalls().length
   await ask(page, '请给出2025年各季度经营数据（关闭后）')
   await page.waitForTimeout(4000)

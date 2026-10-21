@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod'
-import type { IntelligentUiCard, IntelligentUiItem, IntelligentUiView } from './types.ts'
+import type { IntelligentUiCard, IntelligentUiChartItem, IntelligentUiItem, IntelligentUiView } from './types.ts'
 import type { SourceBlock, SourceIndex, SourceTable } from './source-index.ts'
 import { displayUnit } from './numeric.ts'
 import { LIMITS } from './limits.ts'
@@ -95,7 +95,7 @@ function countKeys(value: unknown): number {
 }
 
 /** A program referenced something the bound answer does not offer. */
-class BindingError extends Error {}
+export class BindingError extends Error {}
 
 function block(index: SourceIndex, id: string): SourceBlock {
   const found = index.blocks.get(id)
@@ -136,34 +136,47 @@ function resolveItem(item: Program['items'][number], index: SourceIndex): Intell
     }
     case 'table':
       return { type: 'table', table: table(index, item.table).data }
-    case 'chart': {
-      const source = table(index, item.table)
-      distinct([item.x, ...item.series], 'chart column')
-      const x = source.columns.find(column => column.id === item.x)
-      if (x === undefined || !x.analysis.categorical) throw new BindingError(`column ${item.x} is not a category axis`)
-      // A line implies a trend; unordered categories may only be compared as bars.
-      if (item.chart === 'line' && !x.analysis.ordered) throw new BindingError(`column ${item.x} is not an ordered time/sequence axis`)
-      const series = item.series.map((id) => {
-        const column = source.columns.find(candidate => candidate.id === id)
-        if (column?.analysis.numeric == null) throw new BindingError(`column ${id} is not a same-unit numeric column`)
-        return { name: column.header, numeric: column.analysis.numeric }
-      })
-      const units = new Set(series.map(entry => entry.numeric.unit))
-      if (units.size !== 1) throw new BindingError('chart series mix units')
-      if (source.data.rows.length < 2) throw new BindingError('chart needs at least two points')
-      return {
-        type: 'chart',
-        chart: item.chart,
-        xLabel: x.header,
-        unit: displayUnit(series[0]?.numeric.unit ?? '|'),
-        categories: source.data.rows.map(row => row[Number(item.x.slice(1))] ?? ''),
-        series: series.map(entry => ({ name: entry.name, values: entry.numeric.values })),
-        table: source.data,
-      }
-    }
+    case 'chart':
+      return bindChart(table(index, item.table), item)
     default: {
       const exhaustive: never = item
       throw new BindingError(`unknown item ${String(exhaustive)}`)
     }
+  }
+}
+
+/**
+ * Bind a chart to verified table columns; every plotted value is parsed from
+ * the table's own cell text, so the chart and its "view data" table agree.
+ * @param source - table data with analyzed columns.
+ * @param item - chart kind, category column id, and series column ids.
+ * @returns the resolved chart item.
+ * @throws {@link BindingError} when a column cannot serve its role.
+ */
+export function bindChart(
+  source: Pick<SourceTable, 'data' | 'columns'>,
+  item: { readonly chart: 'bar' | 'line'; readonly x: string; readonly series: readonly string[] },
+): IntelligentUiChartItem {
+  distinct([item.x, ...item.series], 'chart column')
+  const x = source.columns.find(column => column.id === item.x)
+  if (x === undefined || !x.analysis.categorical) throw new BindingError(`column ${item.x} is not a category axis`)
+  // A line implies a trend; unordered categories may only be compared as bars.
+  if (item.chart === 'line' && !x.analysis.ordered) throw new BindingError(`column ${item.x} is not an ordered time/sequence axis`)
+  const series = item.series.map((id) => {
+    const column = source.columns.find(candidate => candidate.id === id)
+    if (column?.analysis.numeric == null) throw new BindingError(`column ${id} is not a same-unit numeric column`)
+    return { name: column.header, numeric: column.analysis.numeric }
+  })
+  const units = new Set(series.map(entry => entry.numeric.unit))
+  if (units.size !== 1) throw new BindingError('chart series mix units')
+  if (source.data.rows.length < 2) throw new BindingError('chart needs at least two points')
+  return {
+    type: 'chart',
+    chart: item.chart,
+    xLabel: x.header,
+    unit: displayUnit(series[0]?.numeric.unit ?? '|'),
+    categories: source.data.rows.map(row => row[Number(item.x.slice(1))] ?? ''),
+    series: series.map(entry => ({ name: entry.name, values: entry.numeric.values })),
+    table: source.data,
   }
 }
