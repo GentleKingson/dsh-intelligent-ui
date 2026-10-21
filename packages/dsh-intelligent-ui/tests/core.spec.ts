@@ -3,6 +3,7 @@ import { analyzeColumn, isOrderedAxis, parseCell, valueAxis } from '../src/numer
 import { readProgram } from '../src/program.ts'
 import { screen } from '../src/smart-auto.ts'
 import { buildSourceIndex } from '../src/source-index.ts'
+import { SAMPLES } from './fixtures/smart-auto-samples.ts'
 
 const TABLE_ANSWER = [
   '## 季度营收',
@@ -171,6 +172,15 @@ describe('Smart Auto screen', () => {
     expect(verdict('## 方案 A\n\n成本低。\n\n## 方案 B\n\n速度快。')).toEqual({ candidate: true, hints: ['cards'] })
     expect(verdict('- **Redis**：内存快\n- **Postgres**：事务强\n- **SQLite**：嵌入式')).toEqual({ candidate: true, hints: ['cards'] })
   })
+
+  it.each(SAMPLES.filter(sample => sample.confidence === 'clear').map(sample => [sample.id, sample] as const))(
+    'labeled sample %s: clear negatives make no call, clear positives keep their hint',
+    (_id, sample) => {
+      const result = verdict(sample.text)
+      if (sample.accept === 'skip') expect(result.candidate).toBe(false)
+      else expect(result.candidate && result.hints.some(hint => sample.accept.includes(hint))).toBe(true)
+    },
+  )
 
   it('skips oversized answers before any call', () => {
     expect(verdict(`| a | b |\n| - | - |\n${'| x | 1 |\n'.repeat(4000)}`)).toEqual({ candidate: false, reason: 'too-large' })
