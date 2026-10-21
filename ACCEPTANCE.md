@@ -226,3 +226,40 @@ Web E2E 使用的模型仍为本地 mock。B4 真实模型对比与 Desktop 验�
 - **真实模型流式**：本环境没有可用的真实模型，NOT_RUN。
 - **Desktop**：NOT_RUN。
 - **PTC**：只有单元测试（PTC 和子代理不注册工具、子调度被拒绝），没有 E2E。
+
+## 追加：审查意见处理（2026-10-21）
+
+本小节为追加内容，上文流式阶段的记录保持原样。以下结果均为本地运行，非 GitHub CI。
+
+| 审查项 | 处理 | 验证 |
+| --- | --- | --- |
+| P1：历史参数先解析 JSON、后检查大小 | `readInlineArgs()` 先检查 UTF-8 字节数，超过 64 KiB 直接拒绝，不调用 `JSON.parse` | 在原有限额测试中增加断言：超限时 `JSON.parse` 没有被调用 |
+| P2：流式预览与最终结果不一致 | 文档写明：预览过的组件如果整次调用最终被拒绝，就不保留（README 规则 3 与“已知限制”）。不改变实现 | — |
+| P2：结论被折叠 | 提示词与参数说明要求 `items` 的第一项是一句 Markdown 结论 | E2E 新增 N3b：不展开回合也能读到结论（mock 遵守提示词；真实模型是否遵守尚未验证） |
+| 已知限制：非法 JSON 导致 `MALFORMED_RESPONSE` | 保持原样，不修改 Agent Loop | — |
+
+**PTC**：以 `DSH_TOOLS_MODE=ptc` 启动同一 Web 服务，新增 E2E 场景 `inline-ptc`，结果 3/3：
+
+- Agent 请求只带 `run_code` 一个工具；
+- 请求体的任何位置都不包含 `render_ui`，原生工具、PTC SDK 和提示词中都没有；
+- 回答以 Markdown 显示，不出现视图，也不发起辅助调用。
+
+作为对照，原生模式下请求体包含 `render_ui`。
+
+**本轮门禁**：
+
+| 检查 | 结果 |
+| --- | --- |
+| `typecheck` | PASS |
+| `test` | 110/110 |
+| `pack` | PASS，0.1.3 tgz 的 SHA-256 为 `97d086c481b84dae7e6df8f3a0abe34865383fbf7a8ef8823be39ca30cfd87cc` |
+| Web E2E | `inline` 16/16，`inline-reload` 4/4，`inline-ptc` 3/3 |
+
+本轮只改了 `inline.ts` 和 inline 提示词，smart-auto 代码路径没有改动，所以没有重跑 smart-auto 的 E2E。
+
+**开销更新**：提示词变长后，主 Agent 每次请求比 smart-auto 多 4,148 B（原为 3,746 B），系统提示多 1,102 字符。
+
+**仍未完成**：
+
+- 真实模型流式（阶段 B）：NOT_RUN，本环境没有真实模型；
+- Desktop：NOT_RUN。

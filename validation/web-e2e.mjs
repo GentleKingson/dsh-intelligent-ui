@@ -3,7 +3,7 @@
  * endpoint is the LOCAL MOCK (mock-messages-server.mjs). Prints one PASS/FAIL
  * line per check and writes screenshots to <outDir>.
  *
- * Usage: node web-e2e.mjs <url-with-token> <outDir> <mock.jsonl> [main|touch|reload|absent|inline|inline-reload]
+ * Usage: node web-e2e.mjs <url-with-token> <outDir> <mock.jsonl> [main|touch|reload|absent|inline|inline-reload|inline-ptc]
  * The inline scenarios need the profile patched to `mode: inline-stream`.
  * Requires playwright-core and Chromium (CHROMIUM_PATH).
  */
@@ -254,6 +254,7 @@ if (scenario === 'main') {
   await tail.waitFor({ timeout: 10000 })
   check('N3 settled view stays in the default chat view', await tail.locator('.diu-body > *').count() === 4
     && await tail.locator('.diu-chart').count() === 1 && await tail.locator('.diu-cards .diu-card').count() === 3)
+  check('N3b conclusion readable without expanding the turn', await tail.locator('.diu-body > .diu-md').first().textContent().then(text => text.includes('结论')))
   // DSH folds a completed turn's process rows; the lead text before the call is one of them.
   await page.getByText(/已完成，用时/).last().click()
   check('N4 lead Markdown answer stays readable in the expanded turn', await page.getByText('2025 年下半年利润改善，详见下方视图。').last().isVisible())
@@ -325,6 +326,20 @@ if (scenario === 'main') {
   await page.waitForTimeout(1500)
   check('NR3 restoring makes no model request', mockEntries().length === count)
   await second.close()
+  await page.close()
+} else if (scenario === 'inline-ptc') {
+  // Tools presented through PTC (DSH_TOOLS_MODE=ptc): render_ui is never offered, answers stay Markdown.
+  const page = await open()
+  const count = mockEntries().length
+  await ask(page, '请给出2025年各季度经营数据（PTC）')
+  await page.waitForTimeout(1500)
+  const agent = mockEntries().slice(count).filter(entry => entry.kind === 'agent')
+  // Neither as a native tool nor inside the PTC SDK or prompt.
+  check('P1 render_ui not exposed to a PTC agent', agent.length >= 1 && agent.every(entry => !entry.offersInline && entry.mentionsInline === false),
+    JSON.stringify(agent.map(({ tools, offersInline, mentionsInline }) => ({ tools, offersInline, mentionsInline }))))
+  check('P2 no view, no auxiliary call, Markdown answer rendered', await page.locator('.diu-root').count() === 0
+    && mockEntries().slice(count).every(entry => entry.kind !== 'auxiliary') && (await page.locator('table').last().textContent()).includes('1,200'))
+  await page.screenshot({ path: join(outDir, 'P-ptc.png') })
   await page.close()
 } else {
   // Plugin disabled or mode off: the prompt is answered, nothing is appended, no auxiliary call.

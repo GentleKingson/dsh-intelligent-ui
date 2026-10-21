@@ -17,7 +17,7 @@ export const INLINE_TOOL_NAME = 'render_ui'
 /** Agent-level guidance registered beside the tool for root agents only. */
 export const INLINE_PROMPT = `# Interactive view (render_ui)
 Most answers are plain Markdown; keep them that way. Call render_ui only when the answer is mainly structured data the user will scan or compare: a table of records, numeric series worth a chart, or 2+ parallel options worth cards.
-When you call it: first write a short plain-Markdown answer (1-3 sentences stating the conclusion) so the reply stays readable without the view, then call render_ui once with the structured data. Put the data only in the tool arguments, not again in your text. A successful call ends your turn; if it fails, answer in plain Markdown instead.
+When you call it: first write a short plain-Markdown answer (1-3 sentences stating the conclusion) so the reply stays readable without the view, then call render_ui once with the structured data. Make the first item a markdown component restating that conclusion in one sentence: your text before the call is folded once the turn ends, so the view must carry it. Put the data only in the tool arguments, not again in your text. A successful call ends your turn; if it fails, answer in plain Markdown instead.
 Rules: text is plain Markdown without HTML, images, or scripts. Every table/chart row has exactly one cell per header. Chart series columns hold plain numbers sharing one unit (e.g. "1,200", "12.5%", or "—" for missing). A line chart needs an increasing time/sequence category column (2025-01, Q1, 1月, years); otherwise use bar.`
 
 const ALIGN = ['left', 'center', 'right', 'none'] as const
@@ -56,7 +56,7 @@ export const INLINE_PARAMETERS = {
   properties: {
     items: {
       type: 'array',
-      description: `1-${LIMITS.items} components, in display order. Each is one of: `
+      description: `1-${LIMITS.items} components, in display order; start with a markdown conclusion. Each is one of: `
         + '{"type":"markdown","markdown":string}; '
         + `{"type":"cards","cards":[{"title":string,"markdown":string}, ...2-${LIMITS.cards}]}; `
         + '{"type":"table","headers":[string...],"rows":[[cell...]...],"align"?:["left"|"center"|"right"|"none"...]}; '
@@ -121,6 +121,9 @@ export function resolveInlineItem(value: unknown): InlineItemOutcome {
   }
 }
 
+const OVER_LIMIT = `arguments exceed ${LIMITS.inlineArgsBytes} bytes`
+const overLimit = (text: string): boolean => new TextEncoder().encode(text).length > LIMITS.inlineArgsBytes
+
 /** Whole-call outcome: every component must pass, or the call is rejected. */
 export type InlineArgsOutcome =
   | { readonly ok: true; readonly items: readonly IntelligentUiItem[] }
@@ -133,9 +136,7 @@ export type InlineArgsOutcome =
  * @returns all resolved items, or the first rejection.
  */
 export function validateInlineArgs(args: unknown): InlineArgsOutcome {
-  if (new TextEncoder().encode(JSON.stringify(args) ?? '').length > LIMITS.inlineArgsBytes) {
-    return { ok: false, detail: `arguments exceed ${LIMITS.inlineArgsBytes} bytes` }
-  }
+  if (overLimit(JSON.stringify(args) ?? '')) return { ok: false, detail: OVER_LIMIT }
   const top = z.strictObject({ items: z.array(z.unknown()).min(1).max(LIMITS.items) }).safeParse(args)
   if (!top.success) return { ok: false, detail: `schema: ${top.error.issues[0]?.message ?? 'rejected'}` }
   const items: IntelligentUiItem[] = []
@@ -153,6 +154,8 @@ export function validateInlineArgs(args: unknown): InlineArgsOutcome {
  * @returns the validated items or a rejection.
  */
 export function readInlineArgs(raw: string): InlineArgsOutcome {
+  // Recorded arguments come from history too; never parse past the limit.
+  if (overLimit(raw)) return { ok: false, detail: OVER_LIMIT }
   let value: unknown
   try {
     value = JSON.parse(raw)

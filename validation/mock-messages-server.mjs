@@ -144,7 +144,7 @@ createServer((req, res) => {
     const reply = toolResult !== undefined ? `（视图未显示）文字回答：${toolResult.is_error === true ? '工具校验失败，以下以纯 Markdown 作答。' : '完成。'}`
       : kind === 'auxiliary' ? auxiliaryReply(user) : kind === 'agent' ? agentReply(user) : '经营数据'
     appendFileSync(log, `${JSON.stringify({
-      at: Date.now(), kind, model: request.model, tools: request.tools?.length ?? 0, offersInline,
+      at: Date.now(), kind, model: request.model, tools: request.tools?.length ?? 0, offersInline, mentionsInline: body.includes('render_ui'),
       requestBytes: Buffer.byteLength(body), systemChars: system.length, messages: request.messages?.length ?? 0,
       toolResult: toolResult === undefined ? undefined : { isError: toolResult.is_error === true },
       maxTokens: request.max_tokens, user: user.slice(0, 120), reply: inline === null ? reply.slice(0, 80) : `render_ui(${inline[1].length} chars)`,

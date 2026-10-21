@@ -66,6 +66,10 @@ describe('InlineArgsStream', () => {
     const huge = { items: [{ type: 'markdown', markdown: 'x'.repeat(70 * 1024) }] }
     expect(new InlineArgsStream().feed(JSON.stringify(huge)).overLimit).toBe(true)
     expect(validateInlineArgs(huge)).toMatchObject({ ok: false, detail: expect.stringContaining('bytes') })
+    const parse = vi.spyOn(JSON, 'parse')
+    expect(readInlineArgs(JSON.stringify(huge))).toMatchObject({ ok: false, detail: expect.stringContaining('bytes') })
+    expect(parse).not.toHaveBeenCalled()
+    parse.mockRestore()
   })
 })
 
