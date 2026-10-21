@@ -72,7 +72,7 @@ function Item({ item, t }: { item: IntelligentUiItem; t: T }) {
   }
 }
 
-const CLAMP_CHARS = 240
+const CLAMP_CHARS = 400
 
 function Cards({ item, t }: { item: IntelligentUiCardsItem; t: T }) {
   return (
@@ -102,6 +102,11 @@ type SortDir = 'ascending' | 'descending'
 
 /** Tables this short may hide their filter row; sorting stays on the headers. */
 const SMALL_ROWS = 6
+/** Longer tables show their first rows until expanded, instead of scrolling inside the answer. */
+const FOLD_ROWS = 12
+const FOLDED_ROWS = 10
+/** Short cells (numbers with units, names) never wrap. */
+const NOWRAP_CHARS = 12
 
 function compareCells(left: string, right: string): number {
   const a = parseCell(left)
@@ -118,6 +123,7 @@ function compareCells(left: string, right: string): number {
 export function TableView({ table, t }: { table: IntelligentUiTableData; t: T }) {
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<{ column: number; dir: SortDir } | null>(null)
+  const [unfolded, setUnfolded] = useState(false)
   const filterId = useId()
   const rows = useMemo(() => {
     const needle = filter.trim().toLowerCase()
@@ -132,6 +138,7 @@ export function TableView({ table, t }: { table: IntelligentUiTableData; t: T })
       return missing !== 0 ? missing : sign * compareCells(a, b)
     })
   }, [table, filter, sort])
+  const folded = !unfolded && filter.trim() === '' && rows.length > FOLD_ROWS
   const cycle = (column: number): void => {
     setSort(sort?.column !== column ? { column, dir: 'ascending' } : sort.dir === 'ascending' ? { column, dir: 'descending' } : null)
   }
@@ -163,16 +170,21 @@ export function TableView({ table, t }: { table: IntelligentUiTableData; t: T })
           <tbody>
             {rows.length === 0
               ? <tr><td colSpan={table.headers.length} className="diu-muted">{t('table.empty')}</td></tr>
-              : rows.map((row, index) => (
+              : (folded ? rows.slice(0, FOLDED_ROWS) : rows).map((row, index) => (
                 <tr key={index}>
-                  {table.headers.map((_, column) => (
-                    <td key={column} style={{ textAlign: alignOf(table, column) }}>{row[column] ?? ''}</td>
-                  ))}
+                  {table.headers.map((_, column) => {
+                    const text = row[column] ?? ''
+                    return <td key={column} className={text.length <= NOWRAP_CHARS ? 'diu-nowrap' : undefined} style={{ textAlign: alignOf(table, column) }}>{text}</td>
+                  })}
                 </tr>
               ))}
           </tbody>
         </table>
       </div>
+      {(folded || (unfolded && rows.length > FOLD_ROWS)) && (
+        <button type="button" className="diu-link" aria-expanded={!folded}
+          onClick={() => { setUnfolded(!unfolded) }}>{folded ? t('table.showAll', { total: rows.length }) : t('table.showLess')}</button>
+      )}
     </div>
   )
 }

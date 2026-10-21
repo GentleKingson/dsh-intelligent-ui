@@ -50,7 +50,11 @@ async function ask(page, prompt, wait = true, fresh = true) {
       await box.click()
     }
     await box.fill('')
-    await box.pressSequentially(prompt)
+    // Enter sends, so line breaks inside a prompt are typed as Shift+Enter.
+    for (const [index, line] of prompt.split('\n').entries()) {
+      if (index > 0) await page.keyboard.press('Shift+Enter')
+      await box.pressSequentially(line)
+    }
     await page.keyboard.press('Enter')
   }
   await send()

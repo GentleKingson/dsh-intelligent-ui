@@ -21,11 +21,12 @@ body[data-ds-dark-theme] .diu-root{--diu-s0:#7aa2f7;--diu-s1:#f0a35e;--diu-s2:#5
 .diu-card{border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:4px;min-width:0}
 .diu-card-title{font-weight:600}
 .diu-card-body{min-width:0;overflow-wrap:anywhere}
-.diu-clamped{max-height:7.5em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 60%,transparent)}
+.diu-clamped{max-height:12em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 60%,transparent)}
 .diu-card .diu-link{align-self:flex-start}
 .diu-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
 .diu-controls input{font:inherit;color:inherit;background:transparent;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.35));border-radius:6px;padding:3px 8px;min-width:0;flex:0 1 200px}
-.diu-scroll{overflow:auto;max-height:420px}
+.diu-scroll{overflow-x:auto}
+.diu-nowrap{white-space:nowrap}
 .diu-table table{border-collapse:collapse;width:100%}
 .diu-table th,.diu-table td{border-bottom:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.2));padding:4px 8px;text-align:left;vertical-align:top}
 .diu-table th{position:sticky;top:0;background:var(--dsw-alias-bg-l1,Canvas);font-weight:600;white-space:nowrap}
