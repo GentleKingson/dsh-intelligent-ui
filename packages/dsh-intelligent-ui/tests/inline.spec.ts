@@ -83,6 +83,14 @@ describe('validateInlineArgs', () => {
     expect(outcome.items[1]).toMatchObject({ table: { rows: [['Q1', '1,200'], ['Q2', '1450']] } })
   })
 
+  it('drops a table that repeats a chart\'s data and keeps one with other columns', () => {
+    const repeat = { type: 'table', headers: CHART.headers, rows: CHART.rows }
+    const extra = { type: 'table', headers: [...CHART.headers, '环比'], rows: CHART.rows.map((row, index) => [...row, `${index}%`]) }
+    const outcome = validateInlineArgs({ items: [MARKDOWN, repeat, CHART, extra] })
+    expect(outcome.ok && outcome.items.map(item => item.type)).toEqual(['markdown', 'chart', 'table'])
+    expect(outcome.ok && outcome.items[2]).toMatchObject({ table: { headers: ['月份', '活跃用户（万）', '环比'] } })
+  })
+
   it.each([
     ['script tag', { type: 'markdown', markdown: 'hi <script>alert(1)</script>' }],
     ['img onerror', { type: 'markdown', markdown: '<img src=x onerror=alert(1)>' }],

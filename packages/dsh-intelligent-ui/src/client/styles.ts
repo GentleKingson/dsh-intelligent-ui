@@ -17,6 +17,7 @@ body[data-ds-dark-theme] .diu-root{--diu-s0:#7aa2f7;--diu-s1:#f0a35e;--diu-s2:#5
 .diu-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .diu-body{display:flex;flex-direction:column;gap:12px;padding-top:8px}
 .diu-cards{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px}
+.diu-cards:has(>:nth-child(4):last-child){grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
 .diu-card{border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:4px;min-width:0}
 .diu-card-title{font-weight:600}
 .diu-card-body{min-width:0;overflow-wrap:anywhere}
