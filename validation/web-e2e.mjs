@@ -3,7 +3,7 @@
  * endpoint is the LOCAL MOCK (mock-messages-server.mjs). Prints one PASS/FAIL
  * line per check and writes screenshots to <outDir>.
  *
- * Usage: node web-e2e.mjs <url-with-token> <outDir> <mock.jsonl> [main|touch|reload|absent|inline|inline-reload|inline-ptc]
+ * Usage: node web-e2e.mjs <url-with-token> <outDir> <mock.jsonl> [main|touch|reload|absent|inline|inline-reload|inline-ptc|real]
  * The inline scenarios need the profile patched to `mode: inline-stream`.
  * Requires playwright-core and Chromium (CHROMIUM_PATH).
  */
@@ -327,6 +327,50 @@ if (scenario === 'main') {
   check('NR3 restoring makes no model request', mockEntries().length === count)
   await second.close()
   await page.close()
+} else if (scenario === 'real') {
+  // Stage B with a real model: measures, never fakes. One fresh session per prompt; prints one JSON line per run.
+  const prompts = JSON.parse(readFileSync(process.env.PROMPTS, 'utf8'))
+  for (const [index, { kind, prompt }] of prompts.entries()) {
+    const page = await open()
+    await page.evaluate(() => {
+      const timeline = []
+      globalThis.diuTimeline = timeline
+      setInterval(() => {
+        const live = document.querySelectorAll('[data-diu-inline] .diu-body > *').length
+        const streaming = [...document.querySelectorAll('[data-diu-inline] .diu-status')].some(node => node.textContent.includes('正在生成交互视图'))
+        const tail = document.querySelectorAll('[data-diu-inline-tail]').length
+        const last = timeline.at(-1)
+        if (last === undefined || last.live !== live || last.streaming !== streaming || last.tail !== tail) timeline.push({ at: Math.round(performance.now()), live, streaming, tail })
+      }, 20)
+    })
+    const sent = await page.evaluate(() => Math.round(performance.now()))
+    await ask(page, prompt, false)
+    const end = page.getByText(/已完成，用时|本轮运行失败|已停止/).last()
+    const ok = await end.waitFor({ timeout: 240000 }).then(() => true, () => false)
+    await page.waitForTimeout(1500)
+    const timeline = await page.evaluate(() => globalThis.diuTimeline)
+    const tail = page.locator('[data-diu-inline-tail]').last()
+    const hasTail = await tail.count() > 0
+    const first = timeline.find(snapshot => snapshot.live > 0)
+    const preparing = timeline.find(snapshot => snapshot.streaming)
+    const settled = timeline.find(snapshot => snapshot.tail > 0)
+    const row = {
+      index, kind, finished: ok ? (await end.textContent()).slice(0, 40) : 'timeout',
+      viewShown: hasTail,
+      items: hasTail ? await tail.locator('.diu-body > *').evaluateAll(nodes => nodes.map(node => node.className.replace('diu-', ''))) : [],
+      firstItemMarkdown: hasTail ? await tail.locator('.diu-body > *').first().evaluate(node => node.classList.contains('diu-md') ? node.textContent.slice(0, 60) : null) : null,
+      streamedBeforeComplete: first !== undefined && first.streaming,
+      msSendToPreparing: preparing === undefined ? null : preparing.at - sent,
+      msPreparingToFirst: first === undefined || preparing === undefined ? null : first.at - preparing.at,
+      msFirstToSettled: first === undefined || settled === undefined ? null : settled.at - first.at,
+      streamedCounts: timeline.filter(snapshot => snapshot.streaming).map(snapshot => snapshot.live),
+      failedNotice: await page.locator('[data-diu-inline] .diu-status', { hasText: '未完成或未通过校验' }).count() > 0,
+      plainMarkdownOnly: await page.locator('.diu-root').count() === 0,
+    }
+    console.log(`RUN ${JSON.stringify(row)}`)
+    if (first !== undefined) await page.screenshot({ path: join(outDir, `real-${index}-${kind}.png`), fullPage: true })
+    await page.close()
+  }
 } else if (scenario === 'inline-ptc') {
   // Tools presented through PTC (DSH_TOOLS_MODE=ptc): render_ui is never offered, answers stay Markdown.
   const page = await open()

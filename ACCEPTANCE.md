@@ -263,3 +263,79 @@ Web E2E 使用的模型仍为本地 mock。B4 真实模型对比与 Desktop 验�
 
 - 真实模型流式（阶段 B）：NOT_RUN，本环境没有真实模型；
 - Desktop：NOT_RUN。
+
+---
+
+# 追加记录：阶段 B 真实模型验收（2026-10-21）
+
+本节为追加内容，上文各节保持原样。
+
+## 环境
+
+| 项 | 值 |
+| --- | --- |
+| DSH | `0.2.0-rc.2` Web，插件 0.1.3（SHA-256 `97d086c4…`） |
+| 模型 | OpenCode Go 上的 `deepseek-v4.1-flash`，经 DSH 内置的 `dsh-llm-pi-ai` 路由 |
+| 协议 | `api: openai-responses`，`baseURL: https://opencode.ai/inference/go/openai/v1` |
+| 请求头 | OpenCode Go 要求 `x-opencode-session`，其文档注明 DSH 的会话支持不完整。本次在路由的 `headers` 中给整次测试设置了一个固定的会话 ID 和描述性 `user-agent` |
+
+## 方法
+
+- 新增 E2E 场景 `real`，每个提示词开一个新会话。页面内每 20 ms 采样一次，记录 preparing 阶段、首个组件、完成后视图的时间。
+- 请求次数和真实 tokens 取自 DSH 会话日志 `assistant/message.usage`，输入 = `inputTokens + cacheReadTokens`；smart-auto 辅助调用的用量取自插件自己的存储。
+- 提示词：3 条普通问答，加 4 类数据型问题（季度经营表、月活趋势、三种存储方案对比、HTTP 状态码列表），每类 3 次。两种模式各跑这 15 条，共 30 次。
+
+## inline-stream 结果
+
+| 类别 | 显示视图 | 说明 |
+| --- | --- | --- |
+| 普通问答 | 0/3 | 均为纯 Markdown，符合预期 |
+| 季度经营（数值表） | 3/3 | 表格 + 图表 |
+| 月活趋势（数值序列） | 3/3 | 折线图 + 表格 |
+| 存储方案对比（选项） | 0/3 | 模型没有调用 `render_ui`，直接用 Markdown 作答 |
+| HTTP 状态码（记录表） | 0/3 | 同上 |
+
+- `render_ui` 共调用 6 次，6 次都通过校验，没有被拒绝的参数，也没有出现 `MALFORMED_RESPONSE`。
+- **流式**：6/6 都在调用完成前显示了首个组件。首个组件比调用完成早 155 ms 到 6,118 ms（中位数约 2.8 s）。组件逐个出现，例如 `[1,2,3,4,5]`。
+- **结论可见**：6/6 的首项都是 Markdown 结论，不展开回合即可阅读。
+- **请求次数**：每个视图都在同一次请求中生成，没有辅助调用。有 3 次运行中，模型在调用 `render_ui` 之前先用了一次 `bash` 计算数据，所以那 3 次是 2 次请求。这是模型自己的工具选择，不是插件追加的请求。
+- 30 次运行没有页面错误，所有回合都正常完成。
+
+## 与 smart-auto 的对比（同一路由、同一组提示词）
+
+| 指标 | inline-stream | smart-auto |
+| --- | --- | --- |
+| 显示视图的回答 | 6/15（仅数值类） | 13/15（12 条数据型全部显示，另有 1 条普通问答也被增强） |
+| 辅助调用 | 0 | 13 次，全部成功；输入 31,717 / 输出 9,193 tokens；在回答完成后再用 3.3–9.1 s |
+| 主 Agent 首次请求的输入 tokens（15 次平均） | 7,162 | 6,638 |
+| 单次请求的固定开销 | 每次请求多 489–541 tokens（真实分词器计数；工具 schema 加提示词） | — |
+| 总请求数 / 输入 / 输出（15 次） | 19 / 144,254 / 29,842 | 40 / 446,670 / 51,953，另加辅助调用 13 次 |
+
+smart-auto 的总量偏高，主要来自 2 次运行：模型自行调用 `bash`、`write`、`read_image`，用 matplotlib 绘图，分别用了 14 次和 9 次请求。样本量小，不能据此得出 inline-stream 一般更省的结论。可以确定的只有两点：inline-stream 每次请求固定多约 0.5k 输入 tokens，并且省去辅助调用。
+
+## 结论
+
+- **阶段 B（真实模型，Web）**：流式显示、校验、结论可见、单次请求都已在真实模型上验证通过。
+- **新发现的限制**：对“选项比较”和“记录列表”类问题，模型 0/6 选择调用 `render_ui`，而 smart-auto 能为它们生成视图。也就是说，当前提示词下 inline-stream 的覆盖面明显小于 smart-auto。是否调整提示词，需要另行决定。
+- Desktop 仍为 NOT_RUN。
+- 截图：`validation/screenshots/inline-real-trend.png`、`inline-real-quarterly.png`。
+
+## 复现
+
+在 profile 的 `cordis.patch.yml` 中加入以下配置，启动 `dsh` 前在环境中设置 `OPENCODE_API_KEY`；密钥不要写进配置文件。
+
+```yaml
+- id: llm-pi-ai
+  config:
+    providers:
+      opencode-go:
+        apiKeyEnv: OPENCODE_API_KEY
+        api: openai-responses
+        baseURL: https://opencode.ai/inference/go/openai/v1
+        headers: { x-opencode-session: <每次测试一个固定 ID> }
+        models: [{ id: deepseek-v4.1-flash }]
+- id: agent-default-model
+  config: { provider: opencode-go, model: deepseek-v4.1-flash }
+```
+
+运行：`PROMPTS=<提示词 JSON> node validation/web-e2e.mjs '<URL>' <输出目录> /dev/null real`
