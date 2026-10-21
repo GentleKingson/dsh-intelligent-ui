@@ -34,22 +34,20 @@ function introducesCode(block: SourceBlock, next: SourceBlock | undefined): bool
 /**
  * Headings that each introduce at least one non-code referenceable block and
  * read as an independent section: numbered step headings and sections whose
- * prose only leads into code are a sequential guide, not comparable options.
+ * only prose leads into code are a sequential guide, not comparable options.
+ * A section with its own description still counts when it also shows code.
  */
 function sectionCount(index: SourceIndex): number {
   let sections = 0
   for (let position = 0; position < index.order.length; position++) {
     const heading = index.blocks.get(index.order[position] ?? '')
     if (heading?.kind !== 'heading' || !heading.referenceable || STEP_HEADING.test(heading.title)) continue
-    let prose = false
-    let guide = false
     for (let next = position + 1; next < index.order.length; next++) {
       const block = index.blocks.get(index.order[next] ?? '')
       if (block === undefined || block.kind === 'heading') break
-      if (introducesCode(block, index.blocks.get(index.order[next + 1] ?? ''))) guide = true
-      else if (block.referenceable && PROSE_KINDS.has(block.kind)) prose = true
+      if (block.referenceable && PROSE_KINDS.has(block.kind)
+        && !introducesCode(block, index.blocks.get(index.order[next + 1] ?? ''))) { sections++; break }
     }
-    if (prose && !guide) sections++
   }
   return sections
 }

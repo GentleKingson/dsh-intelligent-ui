@@ -42,6 +42,7 @@ export const SAMPLES: readonly SmartAutoSample[] = [
   { id: 'options-en', text: '## Option A: Redis\n\nIn-memory, lowest latency.\n\n## Option B: PostgreSQL\n\nFull transactions, strong consistency.', accept: ['cards'], confidence: 'clear', why: 'two comparable options' },
   { id: 'products-en', text: '## iPhone 16\n\nBest video, tight ecosystem.\n\n## Pixel 9\n\nBest AI features, clean Android.\n\n## Galaxy S24\n\nMost flexible hardware.', accept: ['cards'], confidence: 'clear', why: 'three products' },
   { id: 'options-with-snippet-zh', text: '## 方案 A：轮询\n\n实现简单，延迟较高。\n\n```js\nsetInterval(poll, 1000)\n```\n\n## 方案 B：WebSocket\n\n实时推送，需要长连接。\n\n```js\nnew WebSocket(url)\n```', accept: ['cards'], confidence: 'clear', why: '可比较方案，各附示例代码' },
+  { id: 'options-with-example-zh', text: '## 方案 A：轮询\n\n实现简单，延迟较高。\n\n示例：\n\n```js\nsetInterval(poll, 1000)\n```\n\n## 方案 B：WebSocket\n\n实时推送，需要长连接。\n\n示例：\n\n```js\nnew WebSocket(url)\n```', accept: ['cards'], confidence: 'clear', why: '方案说明 + “示例：”引出代码，仍是可比较方案' },
   { id: 'bold-list-zh', text: '- **Redis**：内存快\n- **Postgres**：事务强\n- **SQLite**：嵌入式', accept: ['cards'], confidence: 'clear', why: '结构化列表' },
   { id: 'bold-list-en', text: '- **Speed**: Redis wins for reads.\n- **Durability**: Postgres is safest.\n- **Footprint**: SQLite needs no server.\n- **Cost**: all three are free.', accept: ['cards'], confidence: 'clear', why: 'structured list' },
   { id: 'quarter-table', text: `下面是 2025 年各季度经营数据：\n\n${QUARTERS}`, accept: ['table', 'chart'], confidence: 'clear', why: '可作柱状图的季度表' },
