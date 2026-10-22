@@ -9,11 +9,15 @@ DSH **v0.2.0-rc.2 与 v0.2.1-rc.2** 的独立插件：DSH 中根会话（不含�
 
 ### 从 GitHub 仓库安装
 
-仓库根目录就是插件包。git 安装拉取的是源码，pnpm 安装后通过 `prepare` 脚本构建 `lib/`；pnpm 10 起默认拦截 git 依赖的构建脚本，所以第一次 `add` 会失败，并打印需要授权的包键。把它加入该 profile 的 `pnpm-workspace.yaml`（`$DSH_HOME/profiles/<profile>/pnpm-workspace.yaml`，`dsh` 失败时会打印确切路径）：
+仓库根目录就是插件包。git 安装拉取的是源码，pnpm 安装后通过 `prepare` 脚本构建 `lib/`；pnpm 10 起默认拦截 git 依赖的构建脚本，所以第一次 `add` 会失败，并打印需要授权的包名。按 pnpm 的提示把它加入该 profile 的 `pnpm-workspace.yaml`（`$DSH_HOME/profiles/<profile>/pnpm-workspace.yaml`，`dsh` 失败时会打印确切路径）：
 
 ```yaml
-allowBuilds:
-  dsh-intelligent-ui: true
+# pnpm 10
+onlyBuiltDependencies:
+  - dsh-intelligent-ui
+# pnpm 11 改用：
+# allowBuilds:
+#   dsh-intelligent-ui: true
 ```
 
 然后重新执行：
