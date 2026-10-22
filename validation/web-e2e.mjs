@@ -337,7 +337,8 @@ if (scenario === 'main') {
   await page.close()
 } else if (scenario === 'real') {
   // Stage B with a real model: measures, never fakes. One fresh session per case; prints one JSON line per run.
-  // A case's `prompt` may be a list of follow-up turns sent in the same session; `expect` is view, plain, or either.
+  // A case's `prompt` may be a list of follow-up turns sent in the same session; `expect` (view, plain, or either)
+  // is checked against the last turn: it must finish, and a view must start with the Markdown conclusion.
   const prompts = JSON.parse(readFileSync(process.env.PROMPTS, 'utf8'))
   for (const [index, { kind, prompt, expect = 'either' }] of prompts.entries()) {
     const page = await open()
@@ -371,7 +372,8 @@ if (scenario === 'main') {
     }
     const timeline = await page.evaluate(() => globalThis.diuTimeline)
     const tail = page.locator('[data-diu-inline-tail]').last()
-    const hasTail = await tail.count() > 0
+    // Earlier turns' views stay on the page, so only a view added by the last turn counts.
+    const hasTail = (tailsPerTurn.at(-1) ?? 0) > (tailsPerTurn.at(-2) ?? 0)
     const first = timeline.find(snapshot => snapshot.live > 0)
     const preparing = timeline.find(snapshot => snapshot.streaming)
     const settled = timeline.find(snapshot => snapshot.tail > 0)
@@ -390,6 +392,9 @@ if (scenario === 'main') {
       plainMarkdownOnly: await page.locator('.diu-root').count() === 0,
     }
     console.log(`RUN ${JSON.stringify(row)}`)
+    check(`R${index} ${kind} finishes`, row.finished.startsWith('已完成'), row.finished)
+    if (expect !== 'either') check(`R${index} ${kind} answers as ${expect}`, hasTail === (expect === 'view'), JSON.stringify(tailsPerTurn))
+    if (hasTail) check(`R${index} ${kind} view starts with the conclusion`, row.firstItemMarkdown !== null, row.items.join(','))
     if (first !== undefined) await page.screenshot({ path: join(outDir, `real-${index}-${kind}.png`), fullPage: true })
     await page.close()
   }

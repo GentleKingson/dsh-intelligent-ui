@@ -152,6 +152,8 @@ export function validateInlineArgs(args: unknown): InlineArgsOutcome {
     if (!outcome.ok) return { ok: false, detail: `item ${index}: ${outcome.detail}` }
     items.push(outcome.item)
   }
+  // Text before the call is folded once the turn ends, so the view itself must open with the conclusion.
+  if (items[0]?.type !== 'markdown') return { ok: false, detail: 'start with a markdown conclusion' }
   // A call ends the turn, so a Markdown-only view would replace the data the answer was meant to show.
   if (items.every(item => item.type === 'markdown')) return { ok: false, detail: 'add at least one table, chart, or cards item' }
   // As in smart-auto, a table repeating a chart's own data stays reachable through the chart's data toggle.
@@ -222,9 +224,9 @@ export class InlineArgsStream {
     const before = this.items.length
     const wasClosed = this.closed
     const wasOver = this.overLimit
-    if (raw.length > LIMITS.inlineArgsBytes) this.overLimit = true
-    const end = Math.min(raw.length, LIMITS.inlineArgsBytes)
-    for (; this.pos < end && !this.closed && !this.overLimit; this.pos++) this.step(raw, this.pos)
+    // Same UTF-8 measure as the final check, so a preview never shows what the call will reject for size.
+    if (overLimit(raw)) this.overLimit = true
+    for (; this.pos < raw.length && !this.closed && !this.overLimit; this.pos++) this.step(raw, this.pos)
     if (this.items.length !== before || this.closed !== wasClosed || this.overLimit !== wasOver) {
       this.snapshot = { items: [...this.items], closed: this.closed, overLimit: this.overLimit }
     }

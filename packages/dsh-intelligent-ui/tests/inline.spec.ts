@@ -66,6 +66,11 @@ describe('InlineArgsStream', () => {
     const huge = { items: [{ type: 'markdown', markdown: 'x'.repeat(70 * 1024) }] }
     expect(new InlineArgsStream().feed(JSON.stringify(huge)).overLimit).toBe(true)
     expect(validateInlineArgs(huge)).toMatchObject({ ok: false, detail: expect.stringContaining('bytes') })
+    // Under the limit in UTF-16 code units, over it in UTF-8 bytes: the preview must agree with the final check.
+    const wide = { items: [{ type: 'markdown', markdown: '中'.repeat(22 * 1024) }, TABLE] }
+    expect(JSON.stringify(wide).length).toBeLessThan(64 * 1024)
+    expect(new InlineArgsStream().feed(JSON.stringify(wide))).toMatchObject({ items: [], overLimit: true })
+    expect(validateInlineArgs(wide)).toMatchObject({ ok: false, detail: expect.stringContaining('bytes') })
     const parse = vi.spyOn(JSON, 'parse')
     expect(readInlineArgs(JSON.stringify(huge))).toMatchObject({ ok: false, detail: expect.stringContaining('bytes') })
     expect(parse).not.toHaveBeenCalled()
@@ -129,6 +134,7 @@ describe('validateInlineArgs', () => {
     expect(readInlineArgs('{"items":[').ok).toBe(false)
     expect(validateInlineArgs({ items: [] }).ok).toBe(false)
     expect(validateInlineArgs({ items: [MARKDOWN, MARKDOWN] })).toMatchObject({ ok: false, detail: expect.stringContaining('table, chart, or cards') })
+    expect(validateInlineArgs({ items: [TABLE, MARKDOWN] })).toMatchObject({ ok: false, detail: expect.stringContaining('markdown conclusion') })
   })
 })
 
