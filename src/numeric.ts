@@ -11,7 +11,7 @@ export type CellValue =
   | { readonly kind: 'text' }
 
 /** Explicit empty markers; they become gaps, never zero. */
-const MISSING = new Set(['', '-', '--', '—', '–', 'n/a', 'na', 'null', 'none', '/', '?', '？', '无', '暂无', '缺失', '未知'])
+const MISSING = new Set(['', '-', '--', '—', '–', 'n/a', 'na', 'null', 'none', '/', '?', '？', '无', '暂无', '缺失', '未知', '未公布'])
 
 const NUMBER = /^(?<pre>[$¥￥€£]?)(?<sign>[+\-−]?)(?<pre2>[$¥￥€£]?)(?<int>\d{1,3}(?:,\d{3})+|\d+)(?<frac>\.\d+)?\s?(?<suf>[%‰°A-Za-zµ一-鿿/]{1,8})?$/u
 
