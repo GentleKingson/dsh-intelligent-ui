@@ -36,7 +36,7 @@ try {
   }))
   symlinkSync(dirname(dirname(protocol)), join(proto, 'node_modules'))
 
-  const base = JSON.parse(readFileSync(join(pkg, '../../tsconfig.base.json'), 'utf8'))
+  const base = JSON.parse(readFileSync(join(pkg, 'tsconfig.base.json'), 'utf8'))
   const options = { ...base.compilerOptions, composite: true, noEmit: false, emitDeclarationOnly: true, skipLibCheck: true }
   writeFileSync(join(proto, 'tsconfig.json'), JSON.stringify({ compilerOptions: { ...options, outDir: 'out' }, include: ['decl/**/*.d.ts'] }))
   writeFileSync(join(plugin, 'tsconfig.host.json'), JSON.stringify({

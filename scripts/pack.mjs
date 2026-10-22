@@ -1,4 +1,4 @@
-/** Build, pack the publishable tarball into ../../dist, and record its SHA-256. */
+/** Build, pack the publishable tarball into dist, and record its SHA-256. */
 
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -7,7 +7,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const pkg = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const dist = resolve(pkg, '../../dist')
+const dist = resolve(pkg, 'dist')
 mkdirSync(dist, { recursive: true })
 execFileSync(process.execPath, [join(pkg, 'scripts/build.mjs')], { cwd: pkg, stdio: 'inherit' })
 const output = execFileSync('pnpm', ['pack', '--pack-destination', dist], { cwd: pkg, encoding: 'utf8' })

@@ -1,0 +1,29 @@
+# GitHub installs use the committed lib/ as is, so it must match a fresh build of src/.
+name: lib check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lib-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Fail if the build changed lib/
+        run: |
+          if [ -n "$(git status --porcelain -- lib)" ]; then
+            git status --short -- lib
+            git diff --stat -- lib
+            echo "::error::lib/ is out of date: run pnpm build and commit lib/"
+            exit 1
+          fi

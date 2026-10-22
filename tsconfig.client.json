@@ -1,4 +1,12 @@
 {
-  "files": [],
-  "references": [{ "path": "./packages/dsh-intelligent-ui/tsconfig.client.json" }]
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.client.tsbuildinfo",
+    "jsx": "react-jsx",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "types": []
+  },
+  "include": ["src/client", "src/shared", "src/types.ts", "src/numeric.ts", "src/limits.ts", "src/inline.ts", "src/program.ts", "src/source-index.ts"]
 }
