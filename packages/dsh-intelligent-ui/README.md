@@ -1,8 +1,8 @@
 # dsh-intelligent-ui
 
-DSH **v0.2.0-rc.2** 的独立插件：DSH 中根会话（不含子代理）的一条最终回答正常完成后，插件在回答下方追加一个受限的**交互视图**，含 Markdown 摘录、卡片、可排序表格、柱状/折线图。**原回答的 Markdown 不做任何改动**，视图只是附加内容；生成失败或无需增强时，用户看到的就是原回答。
+DSH **v0.2.0-rc.2 与 v0.2.1-rc.2** 的独立插件：DSH 中根会话（不含子代理）的一条最终回答正常完成后，插件在回答下方追加一个受限的**交互视图**，含 Markdown 摘录、卡片、可排序表格、柱状/折线图。**原回答的 Markdown 不做任何改动**，视图只是附加内容；生成失败或无需增强时，用户看到的就是原回答。
 
-- 适配版本：`@deepseek-ai/dsh-*` 0.2.0-rc.2（tag `dsh-v0.2.0-rc.2`，commit `639ed015397290b3745d163aafe02ffee4aa3f84`）。
+- 适配版本：`@deepseek-ai/dsh-*` `0.2.0-rc.2 || 0.2.1-rc.2`（0.1.4 起），两个版本均已用 Web mock 全部场景验证：0.2.0-rc.2（tag `dsh-v0.2.0-rc.2`，commit `639ed015397290b3745d163aafe02ffee4aa3f84`）和 0.2.1-rc.2。其他 DSH 版本安装时会被拒绝。
 - 已实际验证的平台：**DSH Web（Linux x64，Chromium）**。Desktop 未记录验收结果，不声明 Desktop 支持。
 
 ## 安装
@@ -10,7 +10,7 @@ DSH **v0.2.0-rc.2** 的独立插件：DSH 中根会话（不含子代理）的�
 使用预编译包安装，无需源码构建：
 
 ```sh
-dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.2.tgz
+dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.4.tgz
 ```
 
 安装后重启该 profile。插件自带的 `cordis.patch.yml` 只插入一个节点 `intelligent-ui`，默认配置为 `mode: smart-auto`。它不覆盖主 Agent Loop 或任何宿主节点。
@@ -39,7 +39,7 @@ dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.2.tgz
 
 1. **注册范围**：只注册到以原生方式调用工具的根会话 Agent。子代理不注册；工具以 PTC 方式呈现（`ptc` 或 `both`）的 Agent 也不注册，日志会记录原因。插件不修改用户的工具呈现方式，也不修改 Agent Loop。
 2. **调用方式**：回答主体是选项比较（2 个以上方案在相同维度上对比）、字段相同的列表（4 项以上）或数值数据时，模型先写 1～3 句 Markdown 结论，再调用一次 `render_ui`。解释、操作步骤、代码和简短回答仍是 Markdown。提示词要求 `items` 的第一个组件是一句不超过两行的 Markdown 结论，因为回合结束后前导文字会被折叠，视图本身要带着结论。调用成功后本轮结束（`concludeTurn`），不会再追加模型请求。
-3. **流式显示**：调用的参数还在生成时，`tool.call.toolview` 就会增量解析 `useToolCallArgumentsPartial()` 的前缀。只有已闭合、并通过单个组件校验的组件才会显示；未闭合的组件不会被解析。整次调用是否通过要等参数完整后才能判定：如果后续组件或整体校验失败，此前预览过的组件会在调用结束后消失，不会保留。
+3. **流式显示**：调用的参数还在生成时，`tool.call.toolview` 就会增量解析 `useToolCallArgumentsPartial()` 的前缀。只有已闭合、并通过单个组件校验的组件才会显示；未闭合的组件不会被解析。整次调用是否通过要等参数完整后才能判定：如果后续组件或整体校验失败，此前预览过的组件会在调用结束后消失，不会保留。DSH 0.2.1 起没有这个前缀，生成期间只显示状态（见“已知限制”）。
 4. **完成后**：DSH 会折叠已完成回合的过程行。视图改由 `conversation.chat.turnTail` 从该回合的工具节点（`ChatNodeStore.turnDataSource`）重新读取并显示，所以刷新页面、另开窗口、打开历史会话都能恢复，无需额外存储或请求。
 5. **校验**：Host 执行与 Client 显示使用同一套规则：读取已记录的参数（含历史）时先检查字节数再解析 JSON；严格 schema（组件缺少 `type` 时按其自身字段推断：有 `chart` 为图表、有 `markdown` 为 Markdown、有 `cards` 为卡片、有 `rows` 为表格；图表缺少 `x` 时取第 0 列，这两种写法都出现在真实模型的追问回合里）；禁止 HTML、图片和脚本链接；每行单元格数必须与表头一致；图表沿用 smart-auto 的数值、单位与有序横轴校验；参数不超过 64 KiB（流式预览与最终校验都按 UTF-8 字节计算，不会出现预览通过、最终因大小被拒的情况）；第一个组件必须是 Markdown 结论；最多 8 个组件；至少包含一个表格、图表或卡片组件，否则视为无效调用，以免只剩一句结论的视图结束本轮、吞掉数据。与 smart-auto 一致：表头和行与某个图表数据完全相同的表格不单独显示，可以通过该图表的“查看数据”打开；流式预览阶段仍会先显示这张表，调用结束后才去掉。
 6. **失败回退**：
@@ -130,7 +130,7 @@ Client 产物 `lib/client.js` 是单个 CJS 浏览器 bundle（按宿主模块�
 | `zod` | 校验配置、模型输出和存储记录；生成的 Typert 编解码代码也依赖它（与官方插件一致） |
 | `mdast-util-from-markdown` + `micromark-extension-gfm` + `mdast-util-gfm` | 解析原回答，建立可引用块和 GFM 表格索引，是“只能引用原文”约束的基础 |
 | `mdast-util-to-string` | 提取标题、单元格的纯文本，用作卡片标题、表头 |
-| `@deepseek-ai/dsh-*`（peer，精确 0.2.0-rc.2） | 宿主服务：llm、session、storage-domain、typert-protocol、cordis |
+| `@deepseek-ai/dsh-*`（peer，`0.2.0-rc.2 || 0.2.1-rc.2`） | 宿主服务：llm、session、storage-domain、typert-protocol、cordis |
 
 许可证见 `THIRD_PARTY_NOTICES.md`，全部为 MIT。
 
@@ -151,6 +151,7 @@ Client 产物 `lib/client.js` 是单个 CJS 浏览器 bundle（按宿主模块�
   - 情景切换只在小样本上验证过：真实模型在 3 次增长假设问题中都使用了它，在 25 条其他用例里没有误用（包括 4 条方案比较）。
   - 视图成功显示后，前导文字随回合折叠，展开后可见；结论依赖模型遵守提示词，放在视图首个 Markdown 组件中。
   - 流式预览中显示过的组件，如果整次调用最终被拒绝，不会保留。
+  - DSH 0.2.1 起去掉了 `useToolCallArgumentsPartial()`，新的参数视图无法逐步读取数组参数，所以没有逐个组件的流式预览：参数生成期间只显示“正在生成交互视图”，调用完成后才显示完整视图。0.2.0-rc.2 仍逐个显示组件。
   - 只支持原生工具参数流。工具以 PTC 方式呈现时，模型看不到 `render_ui`（Web mock 已验证）。
 - Desktop 未记录验收结果。
 - 本地预筛基于启发式规则，可能漏掉少数合适的回答（漏掉时保留原文）。

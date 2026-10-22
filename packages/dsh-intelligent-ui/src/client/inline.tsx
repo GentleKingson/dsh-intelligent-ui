@@ -56,7 +56,10 @@ export function InlineToolView(props: ToolViewProps) {
 }
 
 function Preparing({ useToolCallArgumentsPartial, t }: Extract<ToolViewProps, { phase: 'preparing' }>) {
-  const raw = useToolCallArgumentsPartial()
+  // DSH 0.2.1 dropped this hook; its lazy `args` view cannot follow an array
+  // prefix, so there the row shows only the status until the call settles.
+  // The branch is fixed per DSH runtime, so hook order stays stable.
+  const raw = typeof useToolCallArgumentsPartial === 'function' ? useToolCallArgumentsPartial() : ''
   const stream = useMemo(() => new InlineArgsStream(), [])
   const snapshot = stream.feed(raw)
   const shown = snapshot.items.flatMap(outcome => outcome.ok ? [outcome.item] : [])
