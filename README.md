@@ -9,29 +9,16 @@ DSH **v0.2.0-rc.2 与 v0.2.1-rc.2** 的独立插件：DSH 中根会话（不含�
 
 ### 从 GitHub 仓库安装
 
-仓库根目录就是插件包。git 安装拉取的是源码，pnpm 安装后通过 `prepare` 脚本构建 `lib/`；pnpm 10 起默认拦截 git 依赖的构建脚本，所以第一次 `add` 会失败，并打印需要授权的包名。按 pnpm 的提示把它加入该 profile 的 `pnpm-workspace.yaml`（`$DSH_HOME/profiles/<profile>/pnpm-workspace.yaml`，`dsh` 失败时会打印确切路径）：
-
-```yaml
-# pnpm 10
-onlyBuiltDependencies:
-  - dsh-intelligent-ui
-# pnpm 11 改用：
-# allowBuilds:
-#   dsh-intelligent-ui: true
-```
-
-然后重新执行：
+仓库根目录就是插件包，已构建的 `lib/` 随仓库提交，安装时不运行构建脚本，无需额外授权：
 
 ```sh
 dsh plugin --profile <profile> add https://github.com/GentleKingson/dsh-intelligent-ui
 # 等价写法：github:GentleKingson/dsh-intelligent-ui；建议用 #<commit> 锁定版本
 ```
 
-这项授权允许本插件的构建脚本在安装时以当前用户权限运行。构建需要访问 npm 注册表安装开发依赖，耗时比 tgz 安装长。
-
 ### 使用预编译包安装
 
-无需构建授权，也不安装开发依赖。预编译包在 [`release/`](release/) 中：
+不访问 GitHub。预编译包在 [`release/`](release/) 中：
 
 ```sh
 dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.5.tgz
@@ -133,12 +120,14 @@ dsh plugin --profile <profile> remove dsh-intelligent-ui
 ## 构建
 
 ```sh
-pnpm install     # 安装后 prepare 脚本自动执行一次 build
+pnpm install
 pnpm build       # tsc（Host）→ Typert 生成 → Client 类型检查 → tsdown（Client bundle）
 pnpm typecheck
 pnpm test        # vitest：数值保真、程序校验、Smart Auto 预筛、Host 服务（真实 cordis + storage-json）
 pnpm run pack    # 构建后生成 dist/*.tgz 及 .sha256
 ```
+
+`lib/` 随仓库提交，供 GitHub 安装直接使用：改动源码后运行 `pnpm build`，并把 `lib/` 的变化一起提交。
 
 Client 产物 `lib/client.js` 是单个 CJS 浏览器 bundle（按宿主模块加载约定）：
 
