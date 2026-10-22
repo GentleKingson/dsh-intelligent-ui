@@ -4,8 +4,7 @@
  * line per check and writes screenshots to <outDir>.
  *
  * Usage: node web-e2e.mjs <url-with-token> <outDir> <mock.jsonl> [main|touch|reload|absent|inline|inline-reload|inline-ptc|real]
- * The inline scenarios need the profile patched to `mode: inline-stream`;
- * set STREAM_PREVIEW=0 on DSH 0.2.1+, where the preparing row streams no components.
+ * The inline scenarios need the profile patched to `mode: inline-stream`.
  * Requires playwright-core and Chromium (CHROMIUM_PATH).
  */
 
@@ -21,8 +20,6 @@ const check = (name, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail === '' ? '' : ` — ${detail}`}`)
 }
 const mockEntries = () => !existsSync(mockLog) ? [] : readFileSync(mockLog, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
-// DSH 0.2.1+ gives the preparing row no argument prefix, so it shows only the status there.
-const streamPreview = process.env.STREAM_PREVIEW !== '0'
 const auxCalls = () => mockEntries().filter(entry => entry.kind === 'auxiliary')
 
 const browser = await chromium.launch({ executablePath })
@@ -248,23 +245,18 @@ if (scenario === 'main') {
   // N. Streamed view: components appear one by one while the tool call is still preparing.
   let count = mockEntries().length
   await ask(page, '请给出2025年经营数据（流式）', false)
-  await page.locator(streamPreview ? '[data-diu-inline] .diu-body > *' : '[data-diu-inline] .diu-status').first().waitFor({ timeout: 20000 })
+  await page.locator('[data-diu-inline] .diu-body > *').first().waitFor({ timeout: 20000 })
   await page.locator('[data-diu-inline]').last().screenshot({ path: join(outDir, 'N-first-component.png') })
   await page.locator('[data-diu-inline-tail]').last().waitFor({ timeout: 20000 })
   const timeline = await page.evaluate(() => globalThis.diuTimeline)
   const first = timeline.find(snapshot => snapshot.live > 0)
   const settled = timeline.find(snapshot => snapshot.tail > 0)
   console.log(`   timeline (ms): ${JSON.stringify(timeline)}`)
-  if (!streamPreview) {
-    check('N1 preparing row shows the status and no component until the call settles',
-      timeline.some(snapshot => snapshot.streaming && snapshot.live === 0) && !timeline.some(snapshot => snapshot.streaming && snapshot.live > 0) && settled !== undefined)
-  } else {
   check('N1 first component visible while the call is still streaming', first !== undefined && first.streaming && first.live === 1 && first.tail === 0,
     `first at ${first?.at}, settled view at ${settled?.at} (+${settled === undefined || first === undefined ? '?' : settled.at - first.at} ms)`)
   // The last component closes in the same chunk as the arguments, so it shows with the settled call.
   const streamed = timeline.filter(snapshot => snapshot.streaming && snapshot.live > 0).map(snapshot => snapshot.live)
   check('N2 components arrive one by one before the call completes', JSON.stringify(streamed) === '[1,2,3]', JSON.stringify(streamed))
-  }
   await page.getByText('已完成').last().waitFor({ timeout: 20000 })
   const tail = page.locator('[data-diu-inline-tail]').last()
   await tail.waitFor({ timeout: 10000 })
@@ -328,7 +320,7 @@ if (scenario === 'main') {
   // I. Stop while streaming: shown components stay, nothing settles, the lead text remains.
   count = mockEntries().length
   await ask(page, '请给出2025年经营数据（中断）', false)
-  await page.locator(streamPreview ? '[data-diu-inline] .diu-body > *' : '[data-diu-inline] .diu-status').first().waitFor({ timeout: 20000 })
+  await page.locator('[data-diu-inline] .diu-body > *').first().waitFor({ timeout: 20000 })
   await page.getByRole('button', { name: '停止生成' }).click()
   await page.waitForTimeout(2500)
   check('I1 interrupted call leaves the lead text and no settled view', await page.getByText('2025 年下半年利润改善，详见下方视图。').last().isVisible()

@@ -6,7 +6,7 @@
  * in the default chat flow; history and second windows replay the same nodes.
  */
 
-import { useEffect, useMemo, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useReducer, useSyncExternalStore } from 'react'
 import type { ToolChatData, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -55,11 +55,31 @@ export function InlineToolView(props: ToolViewProps) {
   )
 }
 
-function Preparing({ useToolCallArgumentsPartial, t }: Extract<ToolViewProps, { phase: 'preparing' }>) {
-  // DSH 0.2.1 dropped this hook; its lazy `args` view cannot follow an array
-  // prefix, so there the row shows only the status until the call settles.
+/**
+ * DSH 0.2.1-rc.2 dropped `useToolCallArgumentsPartial`. Its `block.args` view
+ * grows in place but republishes only when an observed field answer changes,
+ * and no public read follows an array prefix, so poll the view's text source
+ * (`chunks`, the field it compares structurally) while the call prepares.
+ * Without that field the row shows only the status until the call settles.
+ */
+function usePolledArguments(block: unknown): string {
+  const chunks = (): readonly string[] | undefined => {
+    const value = (block as { args?: { chunks?: unknown } }).args?.chunks
+    return Array.isArray(value) && value.every(chunk => typeof chunk === 'string') ? value : undefined
+  }
+  const [, refresh] = useReducer((count: number) => count + 1, 0)
+  const rendered = chunks()
+  const count = rendered?.length
+  useEffect(() => {
+    const timer = setInterval(() => { if (chunks()?.length !== count) refresh() }, 50)
+    return () => { clearInterval(timer) }
+  }, [block, count])
+  return rendered?.join('') ?? ''
+}
+
+function Preparing({ useToolCallArgumentsPartial, block, t }: Extract<ToolViewProps, { phase: 'preparing' }>) {
   // The branch is fixed per DSH runtime, so hook order stays stable.
-  const raw = typeof useToolCallArgumentsPartial === 'function' ? useToolCallArgumentsPartial() : ''
+  const raw = typeof useToolCallArgumentsPartial === 'function' ? useToolCallArgumentsPartial() : usePolledArguments(block)
   const stream = useMemo(() => new InlineArgsStream(), [])
   const snapshot = stream.feed(raw)
   const shown = snapshot.items.flatMap(outcome => outcome.ok ? [outcome.item] : [])
