@@ -11,6 +11,10 @@ const CHART = {
   rows: [['1月', '12.5'], ['2月', '—'], ['3月', '15.8']], x: 0, series: [1],
 }
 const ARGS = JSON.stringify({ items: [MARKDOWN, TABLE, CHART] })
+const growth = (name: string, rate: number) => ({
+  name, items: [{ ...CHART, chart: 'bar', rows: [['2026', '100'], ['2027', String(100 * (1 + rate))]] }],
+})
+const SCENARIOS = { type: 'scenarios', label: '增长假设', options: [growth('保守', 0.05), growth('乐观', 0.2)] }
 
 function rejectsItem(item: unknown): string {
   const outcome = validateInlineArgs({ items: [item] })
@@ -97,6 +101,16 @@ describe('validateInlineArgs', () => {
     expect(outcome.ok && outcome.items[2]).toMatchObject({ chart: 'line', categories: ['1月', '2月', '3月'] })
   })
 
+  it('resolves scenarios option by option, as the same components', () => {
+    const repeat = { type: 'table', headers: CHART.headers, rows: [['2026', '100'], ['2027', '105']] }
+    const options = [{ ...growth('保守', 0.05), items: [...growth('保守', 0.05).items, repeat] }, growth('乐观', 0.2)]
+    const outcome = validateInlineArgs({ items: [MARKDOWN, { ...SCENARIOS, options }] })
+    expect(outcome.ok && outcome.items[1]).toMatchObject({
+      type: 'scenarios', label: '增长假设',
+      options: [{ name: '保守', items: [{ type: 'chart', series: [{ values: [100, 105] }] }] }, { name: '乐观', items: [{ type: 'chart' }] }],
+    })
+  })
+
   it('drops a table that repeats a chart\'s data and keeps one with other columns', () => {
     const repeat = { type: 'table', headers: CHART.headers, rows: CHART.rows }
     const extra = { type: 'table', headers: [...CHART.headers, '环比'], rows: CHART.rows.map((row, index) => [...row, `${index}%`]) }
@@ -125,6 +139,11 @@ describe('validateInlineArgs', () => {
     ['line over unordered axis', { ...CHART, rows: [['3月', '1'], ['1月', '2'], ['2月', '3']] }, 'ordered'],
     ['axis index out of range', { ...CHART, x: 5 }, 'category'],
     ['one card', { type: 'cards', cards: [{ title: 'A', markdown: 'a' }] }, 'schema'],
+    ['one scenario option', { ...SCENARIOS, options: [growth('保守', 0.05)] }, 'schema'],
+    ['repeated scenario names', { ...SCENARIOS, options: [growth('保守', 0.05), growth('保守', 0.2)] }, 'differ'],
+    ['nested scenarios', { ...SCENARIOS, options: [growth('保守', 0.05), { name: '乐观', items: [SCENARIOS] }] }, 'option 1 item 0: schema'],
+    ['invalid item in an option', { ...SCENARIOS, options: [growth('保守', 0.05), { name: '乐观', items: [{ ...TABLE, rows: [['Q1']] }] }] }, 'option 1 item 0'],
+    ['HTML in a scenario name', { ...SCENARIOS, options: [growth('<b>保守</b>', 0.05), growth('乐观', 0.2)] }, 'HTML'],
   ])('rejects %s', (_name, item, detail) => {
     expect(rejectsItem(item)).toContain(detail)
   })

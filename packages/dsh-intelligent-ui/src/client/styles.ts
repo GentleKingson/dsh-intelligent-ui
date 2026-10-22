@@ -23,6 +23,11 @@ body[data-ds-dark-theme] .diu-root{--diu-s0:#7aa2f7;--diu-s1:#f0a35e;--diu-s2:#5
 .diu-card-body{min-width:0;overflow-wrap:anywhere}
 .diu-clamped{max-height:12em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 60%,transparent)}
 .diu-card .diu-link{align-self:flex-start}
+.diu-segments{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:8px}
+.diu-segments .diu-muted{margin-right:4px}
+.diu-root .diu-segments button{border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.35));border-radius:999px;padding:2px 10px}
+.diu-root .diu-segments button[aria-pressed=true]{background:var(--dsw-alias-state-business-primary,#3b6fd8);border-color:transparent;color:#fff}
+.diu-scenario{display:flex;flex-direction:column;gap:12px}
 .diu-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
 .diu-controls input{font:inherit;color:inherit;background:transparent;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.35));border-radius:6px;padding:3px 8px;min-width:0;flex:0 1 200px}
 .diu-scroll{overflow-x:auto}

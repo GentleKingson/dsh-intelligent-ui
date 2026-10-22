@@ -8,7 +8,8 @@ import type { ReactNode } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
-  IntelligentUiCardsItem, IntelligentUiChartItem, IntelligentUiItem, IntelligentUiTableData, IntelligentUiView,
+  IntelligentUiCardsItem, IntelligentUiChartItem, IntelligentUiItem, IntelligentUiScenariosItem, IntelligentUiTableData,
+  IntelligentUiView,
 } from '../types.ts'
 import { parseCell, valueAxis } from '../numeric.ts'
 import type { NS } from './locales.ts'
@@ -62,14 +63,40 @@ export function Region({ view, t }: { view: IntelligentUiView; t: T }) {
   )
 }
 
-function Item({ item, t }: { item: IntelligentUiItem; t: T }) {
+function Item({ item, t, scale }: { item: IntelligentUiItem; t: T; scale?: readonly number[] | undefined }) {
   switch (item.type) {
     case 'markdown': return <div className="diu-md"><Markdown text={item.markdown} t={t} /></div>
     case 'cards': return <Cards item={item} t={t} />
     case 'table': return <TableView table={item.table} t={t} />
-    case 'chart': return <Chart item={item} t={t} />
+    case 'chart': return <Chart item={item} t={t} scale={scale} />
+    case 'scenarios': return <Scenarios item={item} t={t} />
     default: return null
   }
+}
+
+/** Switches between precomputed options; nothing is recomputed here. */
+function Scenarios({ item, t }: { item: IntelligentUiScenariosItem; t: T }) {
+  const [selected, setSelected] = useState(0)
+  const option = item.options[selected] ?? item.options[0]
+  // Charts in the same place share one value axis, so switching shows the change rather than a rescaled copy.
+  const scale = (index: number): readonly number[] | undefined => {
+    const charts = item.options.flatMap(entry => entry.items[index]?.type === 'chart' ? [entry.items[index]] : [])
+    if (charts.length !== item.options.length) return undefined
+    return charts.flatMap(chart => chart.series.flatMap(series => series.values)).filter((value): value is number => value !== null)
+  }
+  return (
+    <div className="diu-scenarios">
+      <div className="diu-segments" role="group" aria-label={item.label}>
+        <span className="diu-muted">{item.label}</span>
+        {item.options.map((entry, index) => (
+          <button key={index} type="button" aria-pressed={index === selected} onClick={() => { setSelected(index) }}>{entry.name}</button>
+        ))}
+      </div>
+      <div className="diu-scenario">
+        {option?.items.map((child, index) => <Item key={index} item={child} t={t} scale={scale(index)} />)}
+      </div>
+    </div>
+  )
 }
 
 const CLAMP_CHARS = 400
@@ -221,7 +248,7 @@ function Marker({ shape, x, y }: { shape: number; x: number; y: number }) {
  * @param props - chart item and translator.
  * @returns the chart figure.
  */
-export function Chart({ item, t }: { item: IntelligentUiChartItem; t: T }) {
+export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; scale?: readonly number[] | undefined }) {
   const [hidden, setHidden] = useState<ReadonlySet<number>>(new Set())
   const [active, setActive] = useState<number | null>(null)
   const [showData, setShowData] = useState(false)
@@ -240,7 +267,7 @@ export function Chart({ item, t }: { item: IntelligentUiChartItem; t: T }) {
   }, [])
   const visible = item.series.map((series, index) => ({ series, index })).filter(entry => !hidden.has(entry.index))
   const values = visible.flatMap(entry => entry.series.values).filter((value): value is number => value !== null)
-  const { min, max, ticks, zeroBased } = valueAxis(values, item.chart)
+  const { min, max, ticks, zeroBased } = valueAxis(scale === undefined ? values : [...values, ...scale], item.chart)
   const plotW = width - MARGIN.left - MARGIN.right
   const plotH = HEIGHT - MARGIN.top - MARGIN.bottom
   const count = item.categories.length

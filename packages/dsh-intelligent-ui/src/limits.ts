@@ -22,6 +22,9 @@ export const LIMITS = {
   tableRows: 200,
   tableColumns: 12,
   chartSeries: 4,
+  /** Options of one `inline-stream` scenarios item, and components per option. */
+  scenarioOptions: 4,
+  scenarioItems: 3,
   /** Concurrent auxiliary calls across all sessions. */
   concurrency: 2,
   /** In-memory pending/skipped/failed entries kept for reads and retries. */

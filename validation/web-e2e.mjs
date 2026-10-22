@@ -277,6 +277,23 @@ if (scenario === 'main') {
   check('N7 one agent request, zero auxiliary calls', calls.agent.length === 1 && calls.aux.length === 0 && calls.agent[0].offersInline,
     JSON.stringify(calls.agent.map(({ requestBytes, systemChars, tools }) => ({ requestBytes, systemChars, tools }))))
 
+  // S. Scenarios: switching an option redraws its chart in place, on one value axis shared by all options.
+  await ask(page, '按增长情景预测营收')
+  const scenarios = page.locator('[data-diu-inline-tail]').last().locator('.diu-scenarios')
+  await scenarios.waitFor({ timeout: 20000 })
+  const drawn = async () => ({
+    ticks: await scenarios.locator('svg text[text-anchor=end]').allTextContents(),
+    heights: await scenarios.locator('.diu-bars rect').evaluateAll(nodes => nodes.map(node => node.getAttribute('height'))),
+  })
+  const before = await drawn()
+  await scenarios.getByRole('button', { name: '乐观 20%' }).click()
+  const after = await drawn()
+  check('S1 scenario options switch in place', await scenarios.getByRole('button', { name: '乐观 20%' }).getAttribute('aria-pressed') === 'true'
+    && await scenarios.getByRole('button', { name: '保守 5%' }).getAttribute('aria-pressed') === 'false')
+  check('S2 switching redraws the bars on one shared value axis', before.ticks.length > 1 && JSON.stringify(before.ticks) === JSON.stringify(after.ticks)
+    && before.heights.join() !== after.heights.join(), JSON.stringify({ before, after }))
+  await scenarios.screenshot({ path: join(outDir, 'S-scenarios.png') })
+
   // F. Rejected arguments never render; the error result lets the model answer in Markdown.
   for (const [name, prompt] of [['malicious HTML/script', '恶意内容测试'], ['inconsistent rows', '不一致数据测试'], ['over limit', '超限测试']]) {
     count = mockEntries().length

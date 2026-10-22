@@ -72,8 +72,15 @@ const INLINE_ITEMS = [
   { type: 'cards', cards: [{ title: '方案 A：Redis', markdown: '内存存储，延迟最低。' }, { title: '方案 B：PostgreSQL', markdown: '事务完整，强一致。' }, { title: '方案 C：SQLite', markdown: '嵌入式，零运维。' }] },
 ]
 
+const growth = (name, rate) => ({
+  name, items: [{ type: 'chart', chart: 'bar', headers: ['年份', '营收（万元）'], x: 0, series: [1], rows: [2026, 2027, 2028].map((year, index) => [String(year), String(Math.round(1000 * (1 + rate) ** (index + 1)))]) }],
+})
+const SCENARIOS = [{ type: 'markdown', markdown: '**结论**：增长率每高 5 个百分点，2028 年营收约多 150～200 万元。' },
+  { type: 'scenarios', label: '年增长率', options: [growth('保守 5%', 0.05), growth('基准 10%', 0.1), growth('乐观 20%', 0.2)] }]
+
 /** `render_ui` replies keyed by the user's request: [lead text, raw JSON arguments, ms per chunk]. */
 function inlineReply(user) {
+  if (user.includes('情景')) return ['不同增长率下的营收预测见下方视图。', JSON.stringify({ items: SCENARIOS }), 40]
   if (user.includes('恶意')) return ['见下方视图。', JSON.stringify({ items: [{ type: 'markdown', markdown: '<script>alert(1)</script>' }, { type: 'table', headers: ['a', 'b'], rows: [['<img src=x onerror=alert(1)>', '1']] }] }), 40]
   if (user.includes('坏JSON')) return ['见下方视图。', '{"items":[{"type":"markdown","markdown":"第一段"},{"type":"table","headers":["a"],]}', 40]
   if (user.includes('不一致')) return ['见下方视图。', JSON.stringify({ items: [INLINE_ITEMS[0], { type: 'table', headers: ['季度', '营收'], rows: [['Q1', '1', '多出一列']] }] }), 40]

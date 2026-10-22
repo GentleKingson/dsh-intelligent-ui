@@ -88,12 +88,23 @@ export interface IntelligentUiChartItem {
   readonly table: IntelligentUiTableData
 }
 
-/** One resolved view item; every string in it was copied from the bound answer. */
-export type IntelligentUiItem =
+/** A component the view can show directly. */
+export type IntelligentUiBasicItem =
   | IntelligentUiMarkdownItem
   | IntelligentUiCardsItem
   | IntelligentUiTableItem
   | IntelligentUiChartItem
+
+/** Precomputed alternatives under one assumption; the reader switches between them (`inline-stream` only). */
+export interface IntelligentUiScenariosItem {
+  readonly type: 'scenarios'
+  /** What varies, e.g. "增长假设". */
+  readonly label: string
+  readonly options: readonly { readonly name: string; readonly items: readonly IntelligentUiBasicItem[] }[]
+}
+
+/** One resolved view item; every string in it was copied from the bound answer. */
+export type IntelligentUiItem = IntelligentUiBasicItem | IntelligentUiScenariosItem
 
 /** A validated, source-bound view. */
 export interface IntelligentUiView {

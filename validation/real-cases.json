@@ -22,6 +22,7 @@
   { "kind": "numeric-many-series", "expect": "view", "prompt": "五个城市四个季度的平均气温（℃）：哈尔滨 -15/8/22/2，北京 2/20/27/12，上海 7/18/29/19，广州 15/24/29/24，昆明 10/18/20/15。比较各城市的季节差异" },
   { "kind": "numeric-csv", "expect": "view", "prompt": "region,month,sales\n华东,1月,320\n华东,2月,280\n华东,3月,360\n华南,1月,210\n华南,2月,190\n华南,3月,260\n华北,1月,150\n华北,2月,170\n华北,3月,175\n上面是一季度各区域销售额（万元），分析各区域表现" },
   { "kind": "numeric-calc", "expect": "view", "prompt": "贷款 100 万元、30 年、年利率 3.5%，对比等额本息和等额本金的首月月供、总利息和总还款额" },
+  { "kind": "numeric-scenarios", "expect": "view", "prompt": "公司 2025 年营收 1000 万元，分别按年增长 5%、10%、20% 预测 2026–2028 年营收，我想切换不同增长假设看看" },
   { "kind": "multi-turn-data", "expect": "view", "prompt": ["2025 年各季度营收（万元）：Q1 1200，Q2 1450，Q3 1600，Q4 2000。整理一下", "再加上 2024 年同期：Q1 1000，Q2 1300，Q3 1500，Q4 1700，做同比对比"] },
   { "kind": "multi-turn-followup", "expect": "either", "prompt": ["比较 Redis 和 Memcached 的数据结构、持久化、集群和适用场景", "那做分布式锁用哪个？一句话回答"] }
 ]

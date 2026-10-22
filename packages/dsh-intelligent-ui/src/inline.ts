@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod'
-import type { IntelligentUiItem, IntelligentUiTableData } from './types.ts'
+import type { IntelligentUiBasicItem, IntelligentUiItem, IntelligentUiTableData } from './types.ts'
 import { analyzeColumn } from './numeric.ts'
 import { BindingError, bindChart } from './program.ts'
 import { LIMITS } from './limits.ts'
@@ -18,7 +18,8 @@ export const INLINE_TOOL_NAME = 'render_ui'
 export const INLINE_PROMPT = `# Interactive view (render_ui)
 Call render_ui whenever the main content of your answer is one of: 2+ options, tools, or approaches compared on the same aspects (cards, or a table of option x aspect); a list of 4+ items that share the same fields (a table, e.g. codes with meaning and usage); or numeric data (a table, plus a chart when there is a trend or comparison). Keep plain Markdown for explanations, how-tos, code, and short or conversational answers.
 When you call it: first write a short plain-Markdown answer (1-3 sentences stating the conclusion) so the reply stays readable without the view, then call render_ui once with the structured data. Make the first item a markdown component restating that conclusion in one short sentence (at most two lines): your text before the call is folded once the turn ends, so the view must carry it. Put the data only in the tool arguments, not again in your text. A successful call ends your turn; if it fails, answer in plain Markdown instead.
-Rules: text is plain Markdown without HTML, images, or scripts. Every table/chart row has exactly one cell per header. Chart series columns hold plain numbers sharing one unit (e.g. "1,200", "12.5%", or "—" for missing). A line chart needs an increasing time/sequence category column (2025-01, Q1, 1月, years); otherwise use bar.`
+Rules: text is plain Markdown without HTML, images, or scripts. Every table/chart row has exactly one cell per header. Chart series columns hold plain numbers sharing one unit (e.g. "1,200", "12.5%", or "—" for missing). A line chart needs an increasing time/sequence category column (2025-01, Q1, 1月, years); otherwise use bar.
+When the numbers depend on an assumption the reader may want to vary (growth rate, interest rate, plan tier), you may use one scenarios item: 2-4 named options, each holding the same components computed under that option, so the reader can switch between them. Never use it for options that are simply compared side by side.`
 
 const ALIGN = ['left', 'center', 'right', 'none'] as const
 const cell = z.union([z.string(), z.number().refine(Number.isFinite)]).transform(String)
@@ -61,25 +62,37 @@ export const INLINE_PARAMETERS = {
         + '{"type":"markdown","markdown":string}; '
         + `{"type":"cards","cards":[{"title":string,"markdown":string}, ...2-${LIMITS.cards}]}; `
         + '{"type":"table","headers":[string...],"rows":[[cell...]...],"align"?:["left"|"center"|"right"|"none"...]}; '
-        + '{"type":"chart","chart":"bar"|"line","headers":[string...],"rows":[[cell...]...],"x":<category column index>,"series":[<numeric column index>...1-4]}.',
+        + '{"type":"chart","chart":"bar"|"line","headers":[string...],"rows":[[cell...]...],"x":<category column index>,"series":[<numeric column index>...1-4]}; '
+        + `{"type":"scenarios","label":string,"options":[{"name":string,"items":[1-${LIMITS.scenarioItems} of the components above]}, ...2-${LIMITS.scenarioOptions}]}.`,
       items: { type: 'object' },
     },
   },
 } as const
 
+const scenariosSchema = z.strictObject({
+  type: z.literal('scenarios'),
+  label: z.string().min(1).max(60),
+  options: z.array(z.strictObject({
+    name: z.string().min(1).max(40),
+    items: z.array(z.unknown()).min(1).max(LIMITS.scenarioItems),
+  })).min(2).max(LIMITS.scenarioOptions),
+})
+
+type Outcome<T> = { readonly ok: true; readonly item: T } | { readonly ok: false; readonly detail: string }
+
 /** One component outcome: a resolved view item, or why it was rejected. */
-export type InlineItemOutcome =
-  | { readonly ok: true; readonly item: IntelligentUiItem }
-  | { readonly ok: false; readonly detail: string }
+export type InlineItemOutcome = Outcome<IntelligentUiItem>
 
 /** Raw HTML, images, and script-capable link schemes never reach the renderer. */
 const UNSAFE_MARKDOWN = [/<[A-Za-z!/?]/, /!\[/, /\]\(\s*<?\s*(?:javascript|vbscript|data):/i]
+const UNSAFE = 'HTML, image, or script content is not allowed'
+const unsafe = (text: string): boolean => UNSAFE_MARKDOWN.some(pattern => pattern.test(text))
 
 function unsafeText(item: z.infer<typeof itemSchema>): boolean {
   const texts = item.type === 'markdown' ? [item.markdown]
     : item.type === 'cards' ? item.cards.flatMap(card => [card.title, card.markdown])
       : [...item.headers, ...item.rows.flat()]
-  return texts.some(text => UNSAFE_MARKDOWN.some(pattern => pattern.test(text)))
+  return texts.some(unsafe)
 }
 
 function consistent(width: number, data: readonly (readonly string[])[], what: string): void {
@@ -88,7 +101,18 @@ function consistent(width: number, data: readonly (readonly string[])[], what: s
 }
 
 function inferType(item: object): string | undefined {
-  return ['chart', 'markdown', 'cards'].find(key => key in item) ?? ('rows' in item ? 'table' : undefined)
+  return ['chart', 'markdown', 'cards'].find(key => key in item) ?? ('rows' in item ? 'table' : 'options' in item ? 'scenarios' : undefined)
+}
+
+// Follow-up turns sometimes drop "type"; an item's own keys already name it, and the strict schema still checks the rest.
+const withType = (value: unknown): unknown =>
+  typeof value === 'object' && value !== null && !('type' in value) ? { type: inferType(value), ...value } : value
+
+/** As in smart-auto, a table repeating a chart's own data stays reachable through the chart's data toggle. */
+function dropChartedTables<T extends IntelligentUiItem>(items: readonly T[]): T[] {
+  const tableKey = (table: IntelligentUiTableData): string => JSON.stringify([table.headers, table.rows])
+  const charted = new Set(items.flatMap(item => item.type === 'chart' ? [tableKey(item.table)] : []))
+  return items.filter(item => item.type !== 'table' || !charted.has(tableKey(item.table)))
 }
 
 /**
@@ -97,12 +121,33 @@ function inferType(item: object): string | undefined {
  * @returns the resolved item or a rejection; a rejection never renders.
  */
 export function resolveInlineItem(value: unknown): InlineItemOutcome {
-  // Follow-up turns sometimes drop "type"; an item's own keys already name it, and the strict schema still checks the rest.
-  const typed = typeof value === 'object' && value !== null && !('type' in value) ? { type: inferType(value), ...value } : value
+  const typed = withType(value)
+  if (typeof typed !== 'object' || typed === null || !('type' in typed) || typed.type !== 'scenarios') return resolveBasicItem(typed)
+  const parsed = scenariosSchema.safeParse(typed)
+  if (!parsed.success) return { ok: false, detail: `schema: ${parsed.error.issues[0]?.message ?? 'rejected'}` }
+  const { label, options } = parsed.data
+  const names = options.map(option => option.name)
+  if ([label, ...names].some(unsafe)) return { ok: false, detail: UNSAFE }
+  if (new Set(names).size !== names.length) return { ok: false, detail: 'scenario option names must differ' }
+  const resolved = []
+  for (const [index, option] of options.entries()) {
+    const items: IntelligentUiBasicItem[] = []
+    for (const [at, raw] of option.items.entries()) {
+      // Options hold basic components only, so scenarios never nest.
+      const outcome = resolveBasicItem(withType(raw))
+      if (!outcome.ok) return { ok: false, detail: `option ${index} item ${at}: ${outcome.detail}` }
+      items.push(outcome.item)
+    }
+    resolved.push({ name: option.name, items: dropChartedTables(items) })
+  }
+  return { ok: true, item: { type: 'scenarios', label, options: resolved } }
+}
+
+function resolveBasicItem(typed: unknown): Outcome<IntelligentUiBasicItem> {
   const parsed = itemSchema.safeParse(typed)
   if (!parsed.success) return { ok: false, detail: `schema: ${parsed.error.issues[0]?.message ?? 'rejected'}` }
   const item = parsed.data
-  if (unsafeText(item)) return { ok: false, detail: 'HTML, image, or script content is not allowed' }
+  if (unsafeText(item)) return { ok: false, detail: UNSAFE }
   try {
     switch (item.type) {
       case 'markdown': return { ok: true, item }
@@ -156,10 +201,7 @@ export function validateInlineArgs(args: unknown): InlineArgsOutcome {
   if (items[0]?.type !== 'markdown') return { ok: false, detail: 'start with a markdown conclusion' }
   // A call ends the turn, so a Markdown-only view would replace the data the answer was meant to show.
   if (items.every(item => item.type === 'markdown')) return { ok: false, detail: 'add at least one table, chart, or cards item' }
-  // As in smart-auto, a table repeating a chart's own data stays reachable through the chart's data toggle.
-  const tableKey = (table: IntelligentUiTableData): string => JSON.stringify([table.headers, table.rows])
-  const charted = new Set(items.flatMap(item => item.type === 'chart' ? [tableKey(item.table)] : []))
-  return { ok: true, items: items.filter(item => item.type !== 'table' || !charted.has(tableKey(item.table))) }
+  return { ok: true, items: dropChartedTables(items) }
 }
 
 /**
