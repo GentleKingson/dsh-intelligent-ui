@@ -6,9 +6,7 @@ settings:
 
 importers:
 
-  .: {}
-
-  packages/dsh-intelligent-ui:
+  .:
     dependencies:
       mdast-util-from-markdown:
         specifier: ^2.0.3

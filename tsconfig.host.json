@@ -1,4 +1,10 @@
 {
-  "files": [],
-  "references": [{ "path": "./packages/dsh-intelligent-ui/tsconfig.host.json" }]
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
+  },
+  "include": ["src"],
+  "exclude": ["src/client"]
 }
