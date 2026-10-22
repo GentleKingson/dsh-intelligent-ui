@@ -1,8 +1,8 @@
 # dsh-intelligent-ui
 
-DSH **v0.2.0-rc.2 及更高版本**的独立插件：DSH 中根会话（不含子代理）的一条最终回答正常完成后，插件在回答下方追加一个受限的**交互视图**，含 Markdown 摘录、卡片、可排序表格、柱状/折线图。**原回答的 Markdown 不做任何改动**，视图只是附加内容；生成失败或无需增强时，用户看到的就是原回答。
+DSH **v0.2.0-rc.2 与 v0.2.1-rc.2** 的独立插件：DSH 中根会话（不含子代理）的一条最终回答正常完成后，插件在回答下方追加一个受限的**交互视图**，含 Markdown 摘录、卡片、可排序表格、柱状/折线图。**原回答的 Markdown 不做任何改动**，视图只是附加内容；生成失败或无需增强时，用户看到的就是原回答。
 
-- 适配版本：`@deepseek-ai/dsh-*` `>=0.2.0-rc.2`（0.1.4 起）。已用 Web mock 全部场景验证 0.2.0-rc.2（tag `dsh-v0.2.0-rc.2`，commit `639ed015397290b3745d163aafe02ffee4aa3f84`）和 0.2.1-rc.2（当前 npm 最新版）；更高版本未验证。
+- 适配版本：`@deepseek-ai/dsh-*` `0.2.0-rc.2 || 0.2.1-rc.2`（0.1.4 起），两个版本均已用 Web mock 全部场景验证：0.2.0-rc.2（tag `dsh-v0.2.0-rc.2`，commit `639ed015397290b3745d163aafe02ffee4aa3f84`）和 0.2.1-rc.2。其他 DSH 版本安装时会被拒绝。
 - 已实际验证的平台：**DSH Web（Linux x64，Chromium）**。Desktop 未记录验收结果，不声明 Desktop 支持。
 
 ## 安装
@@ -130,7 +130,7 @@ Client 产物 `lib/client.js` 是单个 CJS 浏览器 bundle（按宿主模块�
 | `zod` | 校验配置、模型输出和存储记录；生成的 Typert 编解码代码也依赖它（与官方插件一致） |
 | `mdast-util-from-markdown` + `micromark-extension-gfm` + `mdast-util-gfm` | 解析原回答，建立可引用块和 GFM 表格索引，是“只能引用原文”约束的基础 |
 | `mdast-util-to-string` | 提取标题、单元格的纯文本，用作卡片标题、表头 |
-| `@deepseek-ai/dsh-*`（peer，`>=0.2.0-rc.2`） | 宿主服务：llm、session、storage-domain、typert-protocol、cordis |
+| `@deepseek-ai/dsh-*`（peer，`0.2.0-rc.2 || 0.2.1-rc.2`） | 宿主服务：llm、session、storage-domain、typert-protocol、cordis |
 
 许可证见 `THIRD_PARTY_NOTICES.md`，全部为 MIT。
 
