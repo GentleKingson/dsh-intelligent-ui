@@ -18,7 +18,7 @@ export const INLINE_TOOL_NAME = 'render_ui'
 export const INLINE_PROMPT = `# Interactive view (render_ui)
 Call render_ui whenever the main content of your answer is one of: 2+ options, tools, or approaches compared on the same aspects (cards, or a table of option x aspect); a list of 4+ items that share the same fields (a table, e.g. codes with meaning and usage); or numeric data (a table, plus a chart when there is a trend or comparison). Keep plain Markdown for explanations, how-tos, code, and short or conversational answers.
 When you call it: first write a short plain-Markdown answer (1-3 sentences stating the conclusion) so the reply stays readable without the view, then call render_ui once with the structured data. Make the first item a markdown component restating that conclusion in one short sentence (at most two lines): your text before the call is folded once the turn ends, so the view must carry it. Put the data only in the tool arguments, not again in your text. A successful call ends your turn; if it fails, answer in plain Markdown instead.
-Rules: text is plain Markdown without HTML, images, or scripts. Every table/chart row has exactly one cell per header. Chart series columns hold plain numbers sharing one unit (e.g. "1,200", "12.5%", or "—" for missing). A line chart needs an increasing time/sequence category column (2025-01, Q1, 1月, years); otherwise use bar.
+Rules: text is plain Markdown without HTML, images, or scripts. Every table/chart row has exactly one cell per header. Chart series columns hold plain numbers sharing one unit (e.g. "1,200", "12.5%", or "—" for missing). A line chart needs an increasing time/sequence category column (2025-01, Q1, 1月, years); otherwise use bar. Unless the user asks for an image file, draw charts with render_ui rather than plotting them to images.
 When the numbers depend on an assumption the reader may want to vary (growth rate, interest rate, plan tier), you may use one scenarios item: 2-4 named options, each holding the same components computed under that option, so the reader can switch between them. Never use it for options that are simply compared side by side.`
 
 const ALIGN = ['left', 'center', 'right', 'none'] as const
@@ -86,7 +86,13 @@ export type InlineItemOutcome = Outcome<IntelligentUiItem>
 /** Raw HTML, images, and script-capable link schemes never reach the renderer. */
 const UNSAFE_MARKDOWN = [/<[A-Za-z!/?]/, /!\[/, /\]\(\s*<?\s*(?:javascript|vbscript|data):/i]
 const UNSAFE = 'HTML, image, or script content is not allowed'
-const unsafe = (text: string): boolean => UNSAFE_MARKDOWN.some(pattern => pattern.test(text))
+// Code spans and fences show their text literally, so `Arc<Mutex<_>>` or `git restore <file>` is not markup.
+// A backslash-escaped backtick opens no span, so escaping cannot hide a tag from the check.
+const CODE = /(?<!\\)(`+)[\s\S]*?[^`]\1(?!`)/g
+const unsafe = (text: string): boolean => {
+  const prose = text.replace(CODE, '')
+  return UNSAFE_MARKDOWN.some(pattern => pattern.test(prose))
+}
 
 function unsafeText(item: z.infer<typeof itemSchema>): boolean {
   const texts = item.type === 'markdown' ? [item.markdown]

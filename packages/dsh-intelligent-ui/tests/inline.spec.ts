@@ -126,8 +126,15 @@ describe('validateInlineArgs', () => {
     ['javascript link', { type: 'markdown', markdown: '[go](javascript:alert(1))' }],
     ['HTML card title', { type: 'cards', cards: [{ title: '<b>A</b>', markdown: 'a' }, { title: 'B', markdown: 'b' }] }],
     ['HTML table cell', { ...TABLE, rows: [['<iframe src=x>', '1']] }],
+    ['HTML between escaped backticks', { type: 'markdown', markdown: '\\`<img src=x onerror=alert(1)>\\`' }],
+    ['HTML outside a code span', { type: 'markdown', markdown: '`a` <script>alert(1)</script> `b`' }],
   ])('rejects %s', (_name, item) => {
     expect(rejectsItem(item)).toContain('HTML')
+  })
+
+  it('accepts tags and images inside code spans and fences, as real answers write them', () => {
+    const code = ['用 `unsafe`、`Arc<Mutex<_>>` 控制复杂度', '撤销改动用 `git restore <file>`', '```html\n<div>![x](y)</div>\n```']
+    for (const markdown of code) expect(validateInlineArgs({ items: [{ type: 'markdown', markdown }, TABLE] }).ok).toBe(true)
   })
 
   it.each([
