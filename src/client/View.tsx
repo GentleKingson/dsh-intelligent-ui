@@ -11,7 +11,7 @@ import type {
   IntelligentUiCardsItem, IntelligentUiChartItem, IntelligentUiItem, IntelligentUiScenariosItem, IntelligentUiTableData,
   IntelligentUiView,
 } from '../types.ts'
-import { parseCell, valueAxis } from '../numeric.ts'
+import { analyzeColumn, parseCell, valueAxis } from '../numeric.ts'
 import type { NS } from './locales.ts'
 
 type T = TranslateNS<typeof NS>
@@ -152,6 +152,9 @@ export function TableView({ table, t }: { table: IntelligentUiTableData; t: T })
   const [sort, setSort] = useState<{ column: number; dir: SortDir } | null>(null)
   const [unfolded, setUnfolded] = useState(false)
   const filterId = useId()
+  const alignments = useMemo(() => table.headers.map((_, column) =>
+    alignOf(table, column) ?? (analyzeColumn(table.rows.map(row => row[column] ?? '')).numeric === null ? 'left' : 'right'),
+  ), [table])
   const rows = useMemo(() => {
     const needle = filter.trim().toLowerCase()
     const kept = needle === '' ? [...table.rows] : table.rows.filter(row => row.some(cell => cell.toLowerCase().includes(needle)))
@@ -185,7 +188,7 @@ export function TableView({ table, t }: { table: IntelligentUiTableData; t: T })
             <tr>
               {table.headers.map((header, column) => (
                 <th key={column} scope="col" aria-sort={sort?.column === column ? sort.dir : 'none'}
-                  style={{ textAlign: alignOf(table, column) }}>
+                  style={{ textAlign: alignments[column] }}>
                   <button type="button" onClick={() => { cycle(column) }} title={t('table.sortBy', { column: header })}>
                     {header}
                     <span aria-hidden="true" className="diu-sort">{sort?.column === column ? (sort.dir === 'ascending' ? '▲' : '▼') : '↕'}</span>
@@ -201,7 +204,9 @@ export function TableView({ table, t }: { table: IntelligentUiTableData; t: T })
                 <tr key={index}>
                   {table.headers.map((_, column) => {
                     const text = row[column] ?? ''
-                    return <td key={column} className={text.length <= NOWRAP_CHARS ? 'diu-nowrap' : undefined} style={{ textAlign: alignOf(table, column) }}>{text}</td>
+                    const kind = parseCell(text).kind
+                    return <td key={column} className={text.length <= NOWRAP_CHARS ? 'diu-nowrap' : 'diu-wrap'}
+                      data-kind={kind} style={{ textAlign: alignments[column] }}>{text}</td>
                   })}
                 </tr>
               ))}
@@ -296,7 +301,7 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
   return (
     <figure className="diu-chart">
       <figcaption>
-        <span>{label}</span>
+        <span className="diu-chart-title">{t('chart.title', { x: item.xLabel, kind: t(item.chart === 'bar' ? 'chart.bar' : 'chart.line') })}</span>
         {item.unit !== '' && <span className="diu-muted">{t('chart.unit', { unit: item.unit })}</span>}
         {!zeroBased && <span className="diu-muted">{t('chart.axisFrom', { min: formatNumber(min) })}</span>}
       </figcaption>
@@ -377,9 +382,10 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
             {visible.map(({ series, index }) => {
               const value = series.values[active]
               return (
-                <div key={index}>
+                <div key={index} className="diu-tooltip-row">
                   <span className={`diu-swatch diu-s${index}`} aria-hidden="true" />
-                  {series.name}: {value === null || value === undefined ? t('chart.missing') : `${formatNumber(value)}${item.unit === '' ? '' : ` ${item.unit}`}`}
+                  <span>{series.name}</span>
+                  <span className="diu-tooltip-value">{value === null || value === undefined ? t('chart.missing') : formatNumber(value)}</span>
                 </div>
               )
             })}
