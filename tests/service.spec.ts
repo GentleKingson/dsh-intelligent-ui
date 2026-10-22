@@ -113,7 +113,7 @@ describe('IntelligentUiService', () => {
     expect(result.usage).toMatchObject({ inputTokens: 40, outputTokens: 12 })
     expect(calls).toHaveLength(1)
     expect(calls[0]?.tools).toBeUndefined()
-    expect(calls[0]).toMatchObject({ provider: 'p', model: 'm', maxTokens: 2048 })
+    expect(calls[0]).toMatchObject({ provider: 'p', model: 'm', sessionId: ref.sessionId, maxTokens: 2048 })
     // Re-delivered events of the same answer never call again.
     replay()
     await settle(service, ref)
@@ -165,6 +165,7 @@ describe('IntelligentUiService', () => {
     expect((await service.retry(ref)).status).toBe('pending')
     expect((await settle(service, ref)).status).toBe('ready')
     expect(calls).toHaveLength(2)
+    expect(calls.map(call => call.sessionId)).toEqual([ref.sessionId, ref.sessionId])
   })
 
   it('model SKIP keeps the Markdown', async () => {

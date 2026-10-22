@@ -12,6 +12,7 @@ import { Service } from '@deepseek-ai/cordis'
 import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, ContextFormed, GenerateOptions } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
@@ -306,6 +307,8 @@ export class IntelligentUiService extends TypertRemoteService {
       const options: GenerateOptions = {
         provider: source.route.provider,
         model: source.route.model,
+        // Some providers require the originating session for transport routing.
+        sessionId: SessionId(ref.sessionId),
         system: SYSTEM_PROMPT,
         messages: [createUserMessage({
           content: [{ type: 'text', text: framePrompt(index, verdict.hints) }],

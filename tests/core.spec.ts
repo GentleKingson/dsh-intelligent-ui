@@ -27,12 +27,13 @@ describe('numeric fidelity', () => {
   })
 
   it('treats explicit blanks as missing and ambiguous cells as text', () => {
-    for (const blank of ['', '-', '—', 'N/A', '无']) expect(parseCell(blank).kind).toBe('missing')
+    for (const blank of ['', '-', '—', 'N/A', '无', '未公布', ' 未公布 ']) expect(parseCell(blank).kind).toBe('missing')
     for (const text of ['约 20', '1.2.3', '12-15', '1234567890123456', '$€5']) expect(parseCell(text).kind).toBe('text')
   })
 
   it('plots a column only with one unit and no text cells; missing stays a gap', () => {
     expect(analyzeColumn(['1', '—', '3']).numeric?.values).toEqual([1, null, 3])
+    expect(analyzeColumn(['-3.2', '未公布', '3.4']).numeric?.values).toEqual([-3.2, null, 3.4])
     expect(analyzeColumn(['1%', '2 ms']).numeric).toBeNull()
     expect(analyzeColumn(['1', 'many']).numeric).toBeNull()
     expect(analyzeColumn(['1', '—']).categorical).toBe(false)
