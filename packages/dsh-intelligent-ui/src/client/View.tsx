@@ -3,12 +3,13 @@
  * shows was copied from that answer by the Host; interactions are local only.
  */
 
-import { Component, useId, useMemo, useState } from 'react'
+import { Component, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
-  IntelligentUiCardsItem, IntelligentUiChartItem, IntelligentUiItem, IntelligentUiTableData, IntelligentUiView,
+  IntelligentUiCardsItem, IntelligentUiChartItem, IntelligentUiItem, IntelligentUiScenariosItem, IntelligentUiTableData,
+  IntelligentUiView,
 } from '../types.ts'
 import { parseCell, valueAxis } from '../numeric.ts'
 import type { NS } from './locales.ts'
@@ -62,17 +63,43 @@ export function Region({ view, t }: { view: IntelligentUiView; t: T }) {
   )
 }
 
-function Item({ item, t }: { item: IntelligentUiItem; t: T }) {
+function Item({ item, t, scale }: { item: IntelligentUiItem; t: T; scale?: readonly number[] | undefined }) {
   switch (item.type) {
     case 'markdown': return <div className="diu-md"><Markdown text={item.markdown} t={t} /></div>
     case 'cards': return <Cards item={item} t={t} />
     case 'table': return <TableView table={item.table} t={t} />
-    case 'chart': return <Chart item={item} t={t} />
+    case 'chart': return <Chart item={item} t={t} scale={scale} />
+    case 'scenarios': return <Scenarios item={item} t={t} />
     default: return null
   }
 }
 
-const CLAMP_CHARS = 240
+/** Switches between precomputed options; nothing is recomputed here. */
+function Scenarios({ item, t }: { item: IntelligentUiScenariosItem; t: T }) {
+  const [selected, setSelected] = useState(0)
+  const option = item.options[selected] ?? item.options[0]
+  // Charts in the same place share one value axis, so switching shows the change rather than a rescaled copy.
+  const scale = (index: number): readonly number[] | undefined => {
+    const charts = item.options.flatMap(entry => entry.items[index]?.type === 'chart' ? [entry.items[index]] : [])
+    if (charts.length !== item.options.length) return undefined
+    return charts.flatMap(chart => chart.series.flatMap(series => series.values)).filter((value): value is number => value !== null)
+  }
+  return (
+    <div className="diu-scenarios">
+      <div className="diu-segments" role="group" aria-label={item.label}>
+        <span className="diu-muted">{item.label}</span>
+        {item.options.map((entry, index) => (
+          <button key={index} type="button" aria-pressed={index === selected} onClick={() => { setSelected(index) }}>{entry.name}</button>
+        ))}
+      </div>
+      <div className="diu-scenario">
+        {option?.items.map((child, index) => <Item key={index} item={child} t={t} scale={scale(index)} />)}
+      </div>
+    </div>
+  )
+}
+
+const CLAMP_CHARS = 400
 
 function Cards({ item, t }: { item: IntelligentUiCardsItem; t: T }) {
   return (
@@ -100,6 +127,14 @@ function CardView({ title, markdown, t }: { title: string; markdown: string; t: 
 
 type SortDir = 'ascending' | 'descending'
 
+/** Tables this short may hide their filter row; sorting stays on the headers. */
+const SMALL_ROWS = 6
+/** Longer tables show their first rows until expanded, instead of scrolling inside the answer. */
+const FOLD_ROWS = 12
+const FOLDED_ROWS = 10
+/** Short cells (numbers with units, names) never wrap. */
+const NOWRAP_CHARS = 12
+
 function compareCells(left: string, right: string): number {
   const a = parseCell(left)
   const b = parseCell(right)
@@ -115,6 +150,7 @@ function compareCells(left: string, right: string): number {
 export function TableView({ table, t }: { table: IntelligentUiTableData; t: T }) {
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<{ column: number; dir: SortDir } | null>(null)
+  const [unfolded, setUnfolded] = useState(false)
   const filterId = useId()
   const rows = useMemo(() => {
     const needle = filter.trim().toLowerCase()
@@ -129,11 +165,12 @@ export function TableView({ table, t }: { table: IntelligentUiTableData; t: T })
       return missing !== 0 ? missing : sign * compareCells(a, b)
     })
   }, [table, filter, sort])
+  const folded = !unfolded && filter.trim() === '' && rows.length > FOLD_ROWS
   const cycle = (column: number): void => {
     setSort(sort?.column !== column ? { column, dir: 'ascending' } : sort.dir === 'ascending' ? { column, dir: 'descending' } : null)
   }
   return (
-    <div className="diu-table">
+    <div className="diu-table" data-small={table.rows.length <= SMALL_ROWS || undefined}>
       <div className="diu-controls">
         <label htmlFor={filterId} className="diu-sr">{t('table.filter')}</label>
         <input id={filterId} type="search" value={filter} placeholder={t('table.filterPlaceholder')}
@@ -160,16 +197,21 @@ export function TableView({ table, t }: { table: IntelligentUiTableData; t: T })
           <tbody>
             {rows.length === 0
               ? <tr><td colSpan={table.headers.length} className="diu-muted">{t('table.empty')}</td></tr>
-              : rows.map((row, index) => (
+              : (folded ? rows.slice(0, FOLDED_ROWS) : rows).map((row, index) => (
                 <tr key={index}>
-                  {table.headers.map((_, column) => (
-                    <td key={column} style={{ textAlign: alignOf(table, column) }}>{row[column] ?? ''}</td>
-                  ))}
+                  {table.headers.map((_, column) => {
+                    const text = row[column] ?? ''
+                    return <td key={column} className={text.length <= NOWRAP_CHARS ? 'diu-nowrap' : undefined} style={{ textAlign: alignOf(table, column) }}>{text}</td>
+                  })}
                 </tr>
               ))}
           </tbody>
         </table>
       </div>
+      {(folded || (unfolded && rows.length > FOLD_ROWS)) && (
+        <button type="button" className="diu-link" aria-expanded={!folded}
+          onClick={() => { setUnfolded(!unfolded) }}>{folded ? t('table.showAll', { total: rows.length }) : t('table.showLess')}</button>
+      )}
     </div>
   )
 }
@@ -180,10 +222,12 @@ function alignOf(table: IntelligentUiTableData, column: number): 'left' | 'cente
 }
 
 const WIDTH = 640
+const MIN_WIDTH = 240
 const HEIGHT = 280
 const MARGIN = { top: 16, right: 16, bottom: 44, left: 60 }
 const DASHES = ['', '6 3', '2 3', '8 3 2 3']
 const MAX_X_LABELS = 12
+const X_LABEL_SPACING = 40
 
 function formatNumber(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 20 })
@@ -204,21 +248,33 @@ function Marker({ shape, x, y }: { shape: number; x: number; y: number }) {
  * @param props - chart item and translator.
  * @returns the chart figure.
  */
-export function Chart({ item, t }: { item: IntelligentUiChartItem; t: T }) {
+export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; scale?: readonly number[] | undefined }) {
   const [hidden, setHidden] = useState<ReadonlySet<number>>(new Set())
   const [active, setActive] = useState<number | null>(null)
   const [showData, setShowData] = useState(false)
   const dataId = useId()
+  // Draw at the rendered width so axis text keeps its size on narrow screens.
+  const plotRef = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(WIDTH)
+  useEffect(() => {
+    const node = plotRef.current
+    if (node === null || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry !== undefined && entry.contentRect.width > 0) setWidth(Math.max(MIN_WIDTH, Math.round(entry.contentRect.width)))
+    })
+    observer.observe(node)
+    return () => { observer.disconnect() }
+  }, [])
   const visible = item.series.map((series, index) => ({ series, index })).filter(entry => !hidden.has(entry.index))
   const values = visible.flatMap(entry => entry.series.values).filter((value): value is number => value !== null)
-  const { min, max, ticks, zeroBased } = valueAxis(values, item.chart)
-  const plotW = WIDTH - MARGIN.left - MARGIN.right
+  const { min, max, ticks, zeroBased } = valueAxis(scale === undefined ? values : [...values, ...scale], item.chart)
+  const plotW = width - MARGIN.left - MARGIN.right
   const plotH = HEIGHT - MARGIN.top - MARGIN.bottom
   const count = item.categories.length
   const band = plotW / count
   const y = (value: number): number => MARGIN.top + (max - value) / (max - min) * plotH
   const center = (index: number): number => MARGIN.left + band * (index + 0.5)
-  const labelEvery = Math.ceil(count / MAX_X_LABELS)
+  const labelEvery = Math.ceil(count / Math.max(2, Math.min(MAX_X_LABELS, Math.floor(plotW / X_LABEL_SPACING))))
   const toggle = (index: number): void => {
     const next = new Set(hidden)
     if (next.has(index)) next.delete(index)
@@ -256,13 +312,13 @@ export function Chart({ item, t }: { item: IntelligentUiChartItem; t: T }) {
           </button>
         ))}
       </div>
-      <div className="diu-plot">
-        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={label}
+      <div className="diu-plot" ref={plotRef}>
+        <svg viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label={label}
           // A tap ends with a synthetic leave; only a mouse/pen leaving hides the tooltip.
           onPointerLeave={(event) => { if (event.pointerType !== 'touch') setActive(null) }}>
           {ticks.map(tick => (
             <g key={tick} className="diu-grid">
-              <line x1={MARGIN.left} x2={WIDTH - MARGIN.right} y1={y(tick)} y2={y(tick)} className={tick === 0 ? 'diu-zero' : undefined} />
+              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(tick)} y2={y(tick)} className={tick === 0 ? 'diu-zero' : undefined} />
               <text x={MARGIN.left - 6} y={y(tick)} dy="0.32em" textAnchor="end">{formatNumber(tick)}</text>
             </g>
           ))}
@@ -314,9 +370,9 @@ export function Chart({ item, t }: { item: IntelligentUiChartItem; t: T }) {
         </svg>
         {active !== null && (
           <div className="diu-tooltip" role="tooltip"
-            style={center(active) > WIDTH / 2
-              ? { right: `calc(${100 - center(active) / WIDTH * 100}% + 6px)` }
-              : { left: `calc(${center(active) / WIDTH * 100}% + 6px)` }}>
+            style={center(active) > width / 2
+              ? { right: `calc(${100 - center(active) / width * 100}% + 6px)` }
+              : { left: `calc(${center(active) / width * 100}% + 6px)` }}>
             <strong>{item.categories[active]}</strong>
             {visible.map(({ series, index }) => {
               const value = series.values[active]

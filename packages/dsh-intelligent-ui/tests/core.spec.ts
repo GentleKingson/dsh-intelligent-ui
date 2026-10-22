@@ -53,6 +53,7 @@ describe('chart axes', () => {
     [['2024', '2025年', '2026']],
     [['2025 Q4', '2026 Q1']],
     [['Jan', 'Feb', 'Mar']],
+    [['第1年', '第 5 年', '第10年']],
   ])('accepts %j as an ordered line axis', (cells) => {
     expect(isOrderedAxis(cells)).toBe(true)
   })
@@ -63,6 +64,7 @@ describe('chart axes', () => {
     [['Q1', 'Q1', 'Q2']],
     [['Q1', '2026-02']],
     [['2026-13', '2026-14']],
+    [['第1年', '第2周']],
   ])('rejects %j as a line axis', (cells) => {
     expect(isOrderedAxis(cells)).toBe(false)
   })

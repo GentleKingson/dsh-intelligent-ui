@@ -3,6 +3,7 @@
  * contribution and appends a read-only interactive view under a finished
  * root answer through `conversation.chat.turnTail`. It never generates and
  * never changes the original Markdown; composing the plugin out removes it.
+ * The `inline-stream` views (`./inline.tsx`) register beside it.
  */
 
 import { useCallback, useSyncExternalStore } from 'react'
@@ -13,11 +14,15 @@ import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import intelligentUiRemote from 'dsh-intelligent-ui/remote'
 import type { IntelligentUiReadResult, IntelligentUiSourceRef } from '../types.ts'
 import { hashSource, sourceMarkdown } from '../shared/source.ts'
 import { EnhancementReader } from './reader.ts'
+import { INLINE_TOOL_NAME } from '../inline.ts'
+import { InlineTail, InlineToolView, type InlineTailInjected } from './inline.tsx'
 import { Region, ViewBoundary } from './View.tsx'
 import { en, NS, zh, type IntelligentUiKey } from './locales.ts'
 import { STYLES } from './styles.ts'
@@ -103,6 +108,30 @@ function registerUi(ctx: Context): void {
   }, IntelligentTail))
 }
 
+/** Register the `inline-stream` toolview and its completed-turn tail. */
+function registerInline(ctx: Context): void {
+  ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({
+    name: 'tool.call.toolview', key: INLINE_TOOL_NAME, locale: NS,
+  }, InlineToolView))
+  ctx.slots.inject('conversation.chat.turnTail', () => ctx.slots.register({
+    name: 'conversation.chat.turnTail',
+    id: 'dsh-intelligent-ui:inline',
+    locale: NS,
+    inject: (sessionId: SessionId): InlineTailInjected => {
+      const chat = ctx.uiConversation.binding(sessionId).target('chat')
+      return {
+        keyedHooks: {
+          toolCalls: (turn) => {
+            const snapshot = chat.getSnapshot()
+            if (snapshot === undefined) throw new Error('intelligent-ui: Chat target is unavailable')
+            return snapshot.nodes.turnDataSource(Number(turn), 'tool-call')
+          },
+        },
+      }
+    },
+  }, InlineTail))
+}
+
 /**
  * Client plugin body: mount this plugin's own Remote namespace, then register
  * the UI in a child scope that declares it (the pattern DSH's own
@@ -112,6 +141,8 @@ function registerUi(ctx: Context): void {
 export async function apply(ctx: Context): Promise<void> {
   const disposeRemote = await ctx.remote.$mount(intelligentUiRemote)
   const ui = ctx.inject(['remote.intelligentUi', 'slots', 'locale'], registerUi)
+  // Its own scope: a composition without the Chat assembly keeps the reader.
+  ctx.inject(['slots', 'locale', 'uiConversation'], registerInline)
   try {
     await ui
   } catch (error) {

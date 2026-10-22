@@ -22,6 +22,8 @@ export const zh = {
   'table.count': '{shown} / {total} 行',
   'table.sortBy': '按 {column} 排序',
   'table.empty': '没有匹配的行',
+  'table.showAll': '显示全部 {total} 行',
+  'table.showLess': '收起',
   'chart.label': '{kind}：{x} 对比 {series}',
   'chart.bar': '柱状图',
   'chart.line': '折线图',
@@ -34,6 +36,11 @@ export const zh = {
   'markdown.copy': '复制',
   'markdown.copied': '已复制',
   'markdown.footnotes': '脚注',
+  'inline.streaming': '正在生成交互视图…已显示 {count} 个组件',
+  'inline.rejected': '{count} 个组件未通过校验，未显示',
+  'inline.overLimit': '内容超出限制，其余部分不再显示',
+  'inline.failed': '交互视图未完成或未通过校验，请以文字回答为准',
+  'inline.below': '交互视图显示在本轮回答下方',
 } as const
 
 /** Key union of this namespace. */
@@ -58,6 +65,8 @@ export const en: Record<IntelligentUiKey, string> = {
   'table.count': '{shown} / {total} rows',
   'table.sortBy': 'Sort by {column}',
   'table.empty': 'No matching rows',
+  'table.showAll': 'Show all {total} rows',
+  'table.showLess': 'Show fewer',
   'chart.label': '{kind}: {x} by {series}',
   'chart.bar': 'Bar chart',
   'chart.line': 'Line chart',
@@ -70,4 +79,9 @@ export const en: Record<IntelligentUiKey, string> = {
   'markdown.copy': 'Copy',
   'markdown.copied': 'Copied',
   'markdown.footnotes': 'Footnotes',
+  'inline.streaming': 'Building interactive view… {count} components shown',
+  'inline.rejected': '{count} components failed validation and are hidden',
+  'inline.overLimit': 'Content exceeds the limit; the rest is not shown',
+  'inline.failed': 'Interactive view incomplete or rejected; rely on the text answer',
+  'inline.below': 'Interactive view is shown below this turn',
 }

@@ -1,7 +1,9 @@
 /**
- * dsh-intelligent-ui, Host half: observe finalized root-session answers,
- * screen them locally, make at most one auxiliary model call per answer,
- * validate and persist the bound view, and serve read-only results.
+ * dsh-intelligent-ui, Host half. `smart-auto` observes finalized root-session
+ * answers, screens them locally, makes at most one auxiliary model call per
+ * answer, validates and persists the bound view, and serves read-only results.
+ * `inline-stream` instead offers root agents one native view tool (see
+ * `inline-tool.ts`) and makes no auxiliary call.
  * @module dsh-intelligent-ui
  */
 
@@ -21,6 +23,7 @@ import { readProgram } from './program.ts'
 import { viewSchema } from './view-schema.ts'
 import { LIMITS } from './limits.ts'
 import { RENDER_SCHEMA_VERSION } from './types.ts'
+import { installInline } from './inline-tool.ts'
 import type {
   IntelligentUiFailReason, IntelligentUiReadResult, IntelligentUiSkipReason, IntelligentUiSourceRef,
   IntelligentUiUsage, IntelligentUiView,
@@ -42,11 +45,15 @@ declare module '@deepseek-ai/cordis' {
 
 /** Plugin configuration. */
 export interface Config {
-  /** `smart-auto` screens every new root answer; `off` makes no new model calls. */
-  readonly mode: 'smart-auto' | 'off'
+  /**
+   * `smart-auto` screens every new root answer; `inline-stream` lets the root
+   * agent's own model stream view data through a native tool; `off` makes no
+   * new model calls.
+   */
+  readonly mode: 'smart-auto' | 'inline-stream' | 'off'
 }
 
-const configSchema = z.strictObject({ mode: z.enum(['smart-auto', 'off']).default('smart-auto') })
+const configSchema = z.strictObject({ mode: z.enum(['smart-auto', 'inline-stream', 'off']).default('smart-auto') })
 
 const recordSchema = z.strictObject({
   schema: z.literal(RENDER_SCHEMA_VERSION),
@@ -160,6 +167,7 @@ export class IntelligentUiService extends TypertRemoteService {
       this.trackers.clear()
     }, 'intelligentUi.abortPending')
     this.ctx.on('session/event', (session, event) => { this.observe(session, event) })
+    if (this.mode === 'inline-stream') this.ctx.inject(['agents', 'tools', 'systemPrompt'], installInline)
     this.ctx.on('session/disposed', (session) => { this.trackers.delete(session.id) })
   }
 
@@ -184,7 +192,7 @@ export class IntelligentUiService extends TypertRemoteService {
   retry(request: IntelligentUiSourceRef): Promise<IntelligentUiReadResult> {
     const key = enhancementKey(request)
     const entry = this.memory.get(key)
-    if (this.mode === 'off' || this.disposed || entry?.status !== 'failed' || !sameRef(entry.ref, request)) {
+    if (this.mode !== 'smart-auto' || this.disposed || entry?.status !== 'failed' || !sameRef(entry.ref, request)) {
       return Promise.resolve(this.lookup(request))
     }
     this.start(key, entry.ref, entry.retry)
@@ -198,7 +206,7 @@ export class IntelligentUiService extends TypertRemoteService {
       switch (entry.status) {
         case 'pending': return { status: 'pending' }
         case 'skipped': return { status: 'skipped', reason: entry.reason }
-        case 'failed': return { status: 'failed', reason: entry.reason, retryable: this.mode !== 'off' }
+        case 'failed': return { status: 'failed', reason: entry.reason, retryable: this.mode === 'smart-auto' }
       }
     }
     const record = this.table?.get(key)
@@ -210,7 +218,7 @@ export class IntelligentUiService extends TypertRemoteService {
 
   /** Incremental per-turn tracking; never scans history. */
   private observe(session: Session, event: SessionEvent): void {
-    if (this.mode === 'off' || this.disposed || session.header.origin === 'subagent') return
+    if (this.mode !== 'smart-auto' || this.disposed || session.header.origin === 'subagent') return
     const id = session.id
     switch (event.type) {
       case 'turn/start':

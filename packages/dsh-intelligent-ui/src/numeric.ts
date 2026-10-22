@@ -87,6 +87,8 @@ function axisKey(raw: string): { readonly scale: string; readonly key: number } 
   const name = text.toLowerCase().replace(/\.$/, '')
   const month = name.length >= 3 ? MONTH_NAMES.findIndex(full => full.startsWith(name)) : -1
   if (month >= 0) return { scale: 'm', key: month + 1 }
+  const nth = /^第\s*(\d+)\s*(年|个?月|周|天|期)$/.exec(text)
+  if (nth !== null) return { scale: `nth${nth[2]}`, key: Number(nth[1]) }
   const cell = parseCell(text)
   return cell.kind === 'number' ? { scale: `number${cell.unit}`, key: cell.value } : null
 }
