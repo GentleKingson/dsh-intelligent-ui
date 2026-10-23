@@ -6,6 +6,7 @@
 
 import type { IntelligentUiCalculatorItem } from './types.ts'
 import { BindingError } from './program.ts'
+import { LIMITS } from './limits.ts'
 
 type Env = Readonly<Record<string, number>>
 type Fn = (env: Env) => number
@@ -148,13 +149,86 @@ export function computeCalculator(
   values: readonly number[],
   formulas: readonly Formula[] = item.outputs.map(output => parseFormula(output.formula)),
 ): (number | null)[] {
+  return evaluateOutputs(item, values, formulas).results
+}
+
+function evaluateOutputs(item: IntelligentUiCalculatorItem, values: readonly number[], formulas: readonly Formula[]) {
   const env: Record<string, number> = Object.create(null) as Record<string, number>
   item.inputs.forEach((input, index) => { env[input.id] = values[index] ?? input.value })
-  return item.outputs.map((output, index) => {
+  const results = item.outputs.map((output, index) => {
     const value = formulas[index]?.evaluate(env) ?? NaN
     if (output.id !== undefined) env[output.id] = value
     return Number.isFinite(value) ? value : null
   })
+  return { env, results }
+}
+
+/** Parsed formulas of a calculator's optional series. */
+export interface SeriesFormulas {
+  readonly from: Formula
+  readonly to: Formula
+  readonly columns: readonly Formula[]
+}
+
+/** Rows of a calculator series for the current inputs. */
+export interface SeriesRows {
+  /** Index values, one per row. */
+  readonly index: readonly number[]
+  /** One cell per column; `null` where a formula fails or is not finite. */
+  readonly rows: readonly (readonly (number | null)[])[]
+  /** The range held more rows than a table may show; only the first are kept. */
+  readonly truncated: boolean
+}
+
+/**
+ * Display text of a series index: 0.1 * 3 shows as 0.3, while 1700000000002 keeps every digit.
+ * @param x - one index value.
+ * @returns the text for the index column and chart categories.
+ */
+export function seriesLabel(x: number): string {
+  return String(Number(x.toPrecision(15)))
+}
+
+/**
+ * Parse a series' formulas.
+ * @param series - the calculator's series.
+ * @returns parsed `from`, `to` and column formulas.
+ */
+export function parseSeries(series: NonNullable<IntelligentUiCalculatorItem['series']>): SeriesFormulas {
+  return { from: parseFormula(series.from), to: parseFormula(series.to), columns: series.columns.map(column => parseFormula(column.formula)) }
+}
+
+/**
+ * Recompute a calculator's series: the index runs from `from` to `to` by
+ * `step`, and each column formula reads the inputs, every output and the index.
+ * @param item - a calculator with a series, accepted by {@link bindCalculator}.
+ * @param values - one value per input.
+ * @param formulas - parsed outputs and series.
+ * @returns the rows, or none when the range is not finite or runs backwards.
+ */
+export function computeSeries(
+  item: IntelligentUiCalculatorItem,
+  values: readonly number[],
+  formulas: { readonly outputs: readonly Formula[]; readonly series: SeriesFormulas },
+): SeriesRows {
+  const series = item.series
+  if (series === undefined) return { index: [], rows: [], truncated: false }
+  const { env } = evaluateOutputs(item, values, formulas.outputs)
+  const from = formulas.series.from.evaluate(env)
+  const to = formulas.series.to.evaluate(env)
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return { index: [], rows: [], truncated: false }
+  // Rounded so float noise in (to - from) / step neither drops nor adds the last row.
+  const count = Math.floor((to - from) / series.step + 1e-9) + 1
+  // Formulas read the exact index; only its display drops float noise (see `seriesLabel`).
+  const index = Array.from({ length: Math.min(count, LIMITS.tableRows) }, (_, at) => from + at * series.step)
+  const rows = index.map((x) => {
+    env[series.x] = x
+    return formulas.series.columns.map((column) => {
+      const value = column.evaluate(env)
+      return Number.isFinite(value) ? value : null
+    })
+  })
+  return { index, rows, truncated: count > LIMITS.tableRows }
 }
 
 const IDENT = /^[A-Za-z_]\w{0,31}$/
@@ -231,5 +305,24 @@ export function bindCalculator(item: IntelligentUiCalculatorItem): IntelligentUi
   const defaults = computeCalculator(bound, inputs.map(input => input.value), formulas)
   const broken = defaults.findIndex(value => value === null)
   if (broken >= 0) throw new BindingError(`calculator: output "${item.outputs[broken]?.label}" is not a finite number at the default inputs`)
+  if (item.series === undefined) return bound
+  const { series } = item
+  // The index is visible only inside the series, so it may not shadow an input or output.
+  define(series.x)
+  const parsed = parseSeries(series)
+  // Scope follows the field, never a display label: from/to run before the index exists, columns run per row.
+  const check = (formula: Formula, where: string, index: boolean): void => {
+    for (const name of formula.names) {
+      if (!known.has(name) || (!index && name === series.x)) throw new BindingError(`calculator: series ${where} reads unknown name ${name}`)
+    }
+  }
+  check(parsed.from, 'from', false)
+  check(parsed.to, 'to', false)
+  parsed.columns.forEach((column, at) => { check(column, `column ${at}`, true) })
+  const { index, rows, truncated } = computeSeries(bound, inputs.map(input => input.value), { outputs: formulas, series: parsed })
+  if (index.length === 0) throw new BindingError('calculator: series from..to is empty or not finite at the default inputs')
+  if (truncated) throw new BindingError(`calculator: series has more than ${LIMITS.tableRows} rows at the default inputs`)
+  const column = series.columns.findIndex((_, at) => rows.some(row => row[at] === null))
+  if (column >= 0) throw new BindingError(`calculator: series column "${series.columns[column]?.label}" is not a finite number for every row at the default inputs`)
   return bound
 }

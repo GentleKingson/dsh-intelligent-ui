@@ -77,6 +77,7 @@ dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.5.tgz
 - `inputs` 最多 6 个：`{id, label, unit?, value, min, max, step?}` 显示为滑块加数字框（公式只读取 `min..max` 内的值，输入超出范围时按边界计算，数字框失焦后显示该值；默认值必须落在 `min + k·step` 上，`step` 不能大于 `max - min`；未给 `step` 时取不超过范围 1/100 的 10 的整数次幂，全整数范围至少为 1，并且保证默认值落在步长上）；`{id, label, unit?, value, options}` 显示为 2～8 个选项按钮；两种写法不能混用，带 `options` 的输入不能再给 `min`、`max` 或 `step`。
 - 计算器单独成项，不能放进 `scenarios`；放进去时返回明确原因。
 - `outputs` 最多 8 个，按顺序计算：`{id?, label, unit?, formula, decimals?, hidden?}`。公式只能读输入 id 和前面输出的 id；`hidden: true` 的中间量（如月利率、期数）只参与计算，不显示为结果卡片，至少要显示一个输出。
+- 可选 `series`：`{x, label, from, to, step?, chart?, columns}` 按输入重新生成逐行数据（如逐年余额）。索引变量 `x` 从公式 `from` 按 `step`（默认 1）走到公式 `to`，每列公式可读输入、所有输出和 `x`；`from`/`to` 不能读 `x`。给出 `chart`（`line` 或 `bar`）时，与第一列单位相同的列画成图，其余列只在“查看数据”中；不给时显示可排序表格。默认输入下必须 1～200 行且每格都是有限数；交互后超过 200 行只显示前 200 行并注明，某格算不出时显示为缺失。
 - 公式是封闭的算术语法：数字、`+ - * / %`、`^`/`**` 幂、括号、比较与 `&& || !`、`c ? a : b`，以及 `min max abs round floor ceil sqrt pow exp ln log10`。公式被解析成闭包求值，不经过 `eval`/`new Function`，也取不到任何对象或全局变量。
 - Host 校验：名字合法且不重复、范围有效、默认值在范围或选项内、公式不引用未知名字或函数，且每个输出在默认输入下是有限数。不满足时把具体原因返回给模型（ChatGPT 的编译诊断不会回到模型，这里会）。
 - 渲染时某个输出算出非有限数（如除以零），只有该卡片显示“—”，其他输出照常，相当于 DIL 的 `__dilSafe`。视图附“查看计算公式”，读者可以核对每个数字的算法。

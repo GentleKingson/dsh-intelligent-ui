@@ -13,7 +13,8 @@ import type {
 } from '../types.ts'
 import { analyzeColumn, parseCell, valueAxis } from '../numeric.ts'
 import { explore, explorerDefaults, explorerPlot } from '../explorer.ts'
-import { clampInput, computeCalculator, parseFormula } from '../formula.ts'
+import { clampInput, computeCalculator, computeSeries, parseFormula, parseSeries, seriesLabel } from '../formula.ts'
+import type { SeriesRows } from '../formula.ts'
 import type { NS } from './locales.ts'
 
 type T = TranslateNS<typeof NS>
@@ -95,6 +96,9 @@ function Calculator({ item, t }: { item: IntelligentUiCalculatorItem; t: T }) {
   const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({})
   const formulas = useMemo(() => item.outputs.map(output => parseFormula(output.formula)), [item])
   const results = useMemo(() => computeCalculator(item, values, formulas), [item, values, formulas])
+  const seriesFormulas = useMemo(() => item.series === undefined ? undefined : parseSeries(item.series), [item])
+  const series = useMemo(() => seriesFormulas === undefined ? undefined
+    : computeSeries(item, values, { outputs: formulas, series: seriesFormulas }), [item, values, formulas, seriesFormulas])
   const id = useId()
   // Formulas only ever read in-range values; while typing passes through 1 → 10 → 100 the box keeps its text.
   const set = (index: number, value: number): void => {
@@ -168,6 +172,7 @@ function Calculator({ item, t }: { item: IntelligentUiCalculatorItem; t: T }) {
         </div>
         <div className="diu-metric-note diu-muted">{t('calculator.live')}</div>
       </div>
+      {item.series !== undefined && series !== undefined && <CalculatorSeries spec={item.series} rows={series} t={t} />}
       {/* Wrong logic would otherwise be silent; the formulas let the reader check what the numbers mean. */}
       <details className="diu-details">
         <summary>{t('calculator.formulas')}</summary>
@@ -175,9 +180,49 @@ function Calculator({ item, t }: { item: IntelligentUiCalculatorItem; t: T }) {
           {item.outputs.map((output, index) => (
             <div key={index}><dt>{output.label}{output.id !== undefined && ` · ${output.id}`}</dt><dd><code>{output.formula}</code></dd></div>
           ))}
+          {item.series !== undefined && (
+            <div><dt>{item.series.label} · {item.series.x}</dt><dd><code>{item.series.from} … {item.series.to}{item.series.step === 1 ? '' : ` (+${formatNumber(item.series.step)})`}</code></dd></div>
+          )}
+          {item.series?.columns.map((column, index) => (
+            <div key={`s${index}`}><dt>{column.label}</dt><dd><code>{column.formula}</code></dd></div>
+          ))}
         </dl>
       </details>
     </section>
+  )
+}
+
+/** A calculator's recomputed rows, drawn by the same chart and table as model-written data. */
+function CalculatorSeries({ spec, rows, t }: { spec: NonNullable<IntelligentUiCalculatorItem['series']>; rows: SeriesRows; t: T }) {
+  const view = useMemo(() => {
+    // en-US grouping is what the shared cell parser reads back for sorting and the chart's data view.
+    const cell = (value: number | null, decimals: number): string => value === null ? '—'
+      : value.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    const table: IntelligentUiTableData = {
+      headers: [spec.label, ...spec.columns.map(column => column.unit === undefined ? column.label : `${column.label}（${column.unit}）`)],
+      align: ['left', ...spec.columns.map(() => 'right' as const)],
+      rows: rows.index.map((x, at) => [seriesLabel(x), ...spec.columns.map((column, index) => cell(rows.rows[at]?.[index] ?? null, column.decimals))]),
+    }
+    if (spec.chart === undefined || rows.index.length === 0) return { table, chart: undefined }
+    const unit = spec.columns[0]?.unit ?? ''
+    const plotted = spec.columns.flatMap((column, index) => (column.unit ?? '') === unit ? [{ column, index }] : [])
+    const others = spec.columns.filter(column => (column.unit ?? '') !== unit).map(column => column.label)
+    const chart: IntelligentUiChartItem = {
+      type: 'chart', chart: spec.chart, xLabel: spec.label, unit, categories: rows.index.map(seriesLabel), table,
+      // Tooltips and the axis show what the table shows, not float tails such as 928,877.5212385055.
+      series: plotted.map(({ column, index }) => ({
+        name: column.label,
+        values: rows.rows.map((row) => { const value = row[index] ?? null; return value === null ? null : Number(value.toFixed(column.decimals)) }),
+      })),
+      tableOnly: others.length > 0 ? others : undefined,
+    }
+    return { table, chart }
+  }, [spec, rows])
+  return (
+    <div className="diu-calc-series">
+      {view.chart === undefined ? <TableView table={view.table} t={t} /> : <Chart item={view.chart} t={t} />}
+      {rows.truncated && <div className="diu-muted">{t('calculator.truncated', { count: rows.index.length })}</div>}
+    </div>
   )
 }
 
