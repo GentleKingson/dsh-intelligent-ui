@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { validateInlineArgs } from '../src/inline.ts'
-import { clampInput, computeCalculator, parseFormula } from '../src/formula.ts'
+import { clampInput, computeCalculator, computeSeries, parseFormula, parseSeries } from '../src/formula.ts'
 import type { IntelligentUiCalculatorItem } from '../src/types.ts'
 
 const MORTGAGE = {
@@ -57,6 +57,32 @@ describe('calculator', () => {
     const principal = accept(MORTGAGE).inputs[0]!
     expect([clampInput(principal, -5), clampInput(principal, 50), clampInput(principal, 1e9)]).toEqual([10, 50, 1000])
     expect(computeCalculator(accept({ ...MORTGAGE, outputs: [{ label: 'x', formula: 'P * 1E4 + 2.5e-1' }] }), [1, 3.5, 30])).toEqual([10000.25])
+  })
+
+  it('recomputes series rows from the inputs, and rejects series that cannot render', () => {
+    const SAVINGS = {
+      type: 'calculator', title: '定投',
+      inputs: [
+        { id: 'monthly', label: '每月投入', value: 3000, min: 500, max: 20000 },
+        { id: 'rate', label: '年化', value: 6, min: 2, max: 10 },
+        { id: 'years', label: '年限', value: 10, min: 1, max: 300 },
+      ],
+      outputs: [{ id: 'i', label: '月利率', formula: 'rate / 1200', hidden: true }, { label: '期末', formula: 'monthly * ((1 + i) ^ (years * 12) - 1) / i' }],
+      series: { x: 'y', label: '年', from: '0', to: 'years', chart: 'line', columns: [{ label: '余额', unit: '元', formula: 'monthly * ((1 + i) ^ (y * 12) - 1) / i' }] },
+    }
+    const item = accept(SAVINGS)
+    const formulas = { outputs: item.outputs.map(output => parseFormula(output.formula)), series: parseSeries(item.series!) }
+    const rows = computeSeries(item, [3000, 6, 10], formulas)
+    expect(rows.index).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    expect(Math.round(rows.rows[10]![0]! * 100) / 100).toBe(491638.04)
+    const long = computeSeries(item, [3000, 6, 300], formulas)
+    expect([long.index.length, long.truncated]).toEqual([200, true])
+    const series = (patch: object) => ({ ...SAVINGS, series: { ...SAVINGS.series, ...patch } })
+    expect(reject(series({ to: 'years * 100' }))).toMatch(/more than 200 rows/)
+    expect(reject(series({ from: 'y' }))).toMatch(/series from reads unknown name y/)
+    expect(reject(series({ x: 'years' }))).toMatch(/defined twice/)
+    expect(reject(series({ to: '-1' }))).toMatch(/empty or not finite/)
+    expect(reject(series({ columns: [{ label: '比', formula: '1 / (y - 3)' }] }))).toMatch(/not a finite number for every row/)
   })
 
   it('accepts an untyped calculator by its outputs', () => {

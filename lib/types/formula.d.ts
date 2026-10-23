@@ -27,6 +27,39 @@ export declare function parseFormula(source: string): Formula;
  * @returns one value or `null` per output.
  */
 export declare function computeCalculator(item: IntelligentUiCalculatorItem, values: readonly number[], formulas?: readonly Formula[]): (number | null)[];
+/** Parsed formulas of a calculator's optional series. */
+export interface SeriesFormulas {
+    readonly from: Formula;
+    readonly to: Formula;
+    readonly columns: readonly Formula[];
+}
+/** Rows of a calculator series for the current inputs. */
+export interface SeriesRows {
+    /** Index values, one per row. */
+    readonly index: readonly number[];
+    /** One cell per column; `null` where a formula fails or is not finite. */
+    readonly rows: readonly (readonly (number | null)[])[];
+    /** The range held more rows than a table may show; only the first are kept. */
+    readonly truncated: boolean;
+}
+/**
+ * Parse a series' formulas.
+ * @param series - the calculator's series.
+ * @returns parsed `from`, `to` and column formulas.
+ */
+export declare function parseSeries(series: NonNullable<IntelligentUiCalculatorItem['series']>): SeriesFormulas;
+/**
+ * Recompute a calculator's series: the index runs from `from` to `to` by
+ * `step`, and each column formula reads the inputs, every output and the index.
+ * @param item - a calculator with a series, accepted by {@link bindCalculator}.
+ * @param values - one value per input.
+ * @param formulas - parsed outputs and series.
+ * @returns the rows, or none when the range is not finite or runs backwards.
+ */
+export declare function computeSeries(item: IntelligentUiCalculatorItem, values: readonly number[], formulas: {
+    readonly outputs: readonly Formula[];
+    readonly series: SeriesFormulas;
+}): SeriesRows;
 /**
  * Keep a reader's value inside the input's declared range; options need no clamp.
  * @param input - one bound calculator input.

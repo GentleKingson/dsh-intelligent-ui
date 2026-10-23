@@ -152,6 +152,24 @@ export interface IntelligentUiCalculatorItem {
     /** An intermediate term other formulas read; listed with the formulas, not as a result. */
     readonly hidden?: boolean | undefined
   }[]
+  /** Rows recomputed from the inputs, e.g. a balance per year, shown as a chart or a table. */
+  readonly series?: {
+    /** Index variable the column formulas read, running from `from` to `to` by `step`. */
+    readonly x: string
+    /** Header of the index column, e.g. "年份". */
+    readonly label: string
+    readonly from: string
+    readonly to: string
+    readonly step: number
+    /** Omitted: a table only. */
+    readonly chart?: 'bar' | 'line' | undefined
+    readonly columns: readonly {
+      readonly label: string
+      readonly unit?: string | undefined
+      readonly formula: string
+      readonly decimals: number
+    }[]
+  } | undefined
 }
 
 /** One resolved view item; every string in it was copied from the bound answer. */
