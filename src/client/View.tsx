@@ -8,11 +8,12 @@ import type { ReactNode } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
-  IntelligentUiCardsItem, IntelligentUiChartItem, IntelligentUiExplorerItem, IntelligentUiItem, IntelligentUiScenariosItem, IntelligentUiTableData,
+  IntelligentUiCalculatorItem, IntelligentUiCardsItem, IntelligentUiChartItem, IntelligentUiExplorerItem, IntelligentUiItem, IntelligentUiScenariosItem, IntelligentUiTableData,
   IntelligentUiView,
 } from '../types.ts'
 import { analyzeColumn, parseCell, valueAxis } from '../numeric.ts'
 import { explore, explorerDefaults, explorerPlot } from '../explorer.ts'
+import { computeCalculator, parseFormula } from '../formula.ts'
 import type { NS } from './locales.ts'
 
 type T = TranslateNS<typeof NS>
@@ -81,8 +82,100 @@ function Item({ item, t, scale }: { item: IntelligentUiItem; t: T; scale?: reado
     case 'chart': return <Chart item={item} t={t} scale={scale} />
     case 'scenarios': return <Scenarios item={item} t={t} />
     case 'explorer': return <Explorer item={item} t={t} />
+    case 'calculator': return <Calculator item={item} t={t} />
     default: return null
   }
+}
+
+/** Local inputs drive arithmetic outputs; nothing is sent anywhere. */
+function Calculator({ item, t }: { item: IntelligentUiCalculatorItem; t: T }) {
+  const defaults = useMemo(() => item.inputs.map(input => input.value), [item])
+  const [values, setValues] = useState(defaults)
+  // Text of a number box being edited: it may be empty or partial ("", "1.") while the reader types.
+  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({})
+  const formulas = useMemo(() => item.outputs.map(output => parseFormula(output.formula)), [item])
+  const results = useMemo(() => computeCalculator(item, values, formulas), [item, values, formulas])
+  const id = useId()
+  // Typing passes through intermediate values (1 → 10 → 100), so the number box clamps only when it loses focus.
+  const set = (index: number, value: number, clamp = true): void => {
+    if (clamp) setDrafts({})
+    const input = item.inputs[index]
+    if (input === undefined || !Number.isFinite(value)) return
+    const next = clamp ? Math.min(input.max ?? value, Math.max(input.min ?? value, value)) : value
+    setValues(current => current.map((old, at) => at === index ? next : old))
+  }
+  return (
+    <section className="diu-explorer diu-calculator" aria-label={item.title}>
+      <div className="diu-explorer-head">
+        <div className="diu-chart-title" role="heading" aria-level={3}>{item.title}</div>
+        <button type="button" className="diu-link" disabled={values.every((value, index) => value === defaults[index])}
+          onClick={() => { setValues(defaults); setDrafts({}) }}>{t('calculator.reset')}</button>
+      </div>
+      <div className="diu-filter-fields">
+        {item.inputs.map((input, index) => {
+          const value = values[index] ?? input.value
+          const unit = input.unit === undefined ? '' : ` ${input.unit}`
+          if (input.options !== undefined) {
+            return (
+              <div key={input.id} className="diu-calc-input" role="group" aria-label={input.label}>
+                <span>{input.label}</span>
+                <div className="diu-segments">
+                  {input.options.map(option => (
+                    <button key={option} type="button" aria-pressed={option === value} onClick={() => { set(index, option) }}>{formatNumber(option)}{unit}</button>
+                  ))}
+                </div>
+              </div>
+            )
+          }
+          return (
+            <div key={input.id} className="diu-calc-input">
+              <label htmlFor={`${id}-${input.id}`}>{input.label}{unit && ` (${input.unit})`}</label>
+              <div className="diu-calc-range">
+                <input type="range" aria-label={input.label} min={input.min} max={input.max} step={input.step} value={value}
+                  onChange={(event) => { set(index, Number(event.target.value)) }} />
+                <input id={`${id}-${input.id}`} type="number" min={input.min} max={input.max} step={input.step}
+                  value={drafts[input.id] ?? value}
+                  onChange={(event) => {
+                    const text = event.target.value
+                    setDrafts({ ...drafts, [input.id]: text })
+                    // An empty or unfinished entry keeps the last number until it parses.
+                    if (text.trim() !== '') set(index, Number(text), false)
+                  }}
+                  onBlur={() => { set(index, value) }} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div aria-live="polite" aria-atomic="true">
+        <div className="diu-metrics">
+          {item.outputs.map((output, index) => {
+            const value = results[index] ?? null
+            if (output.hidden === true) return null
+            return (
+              <div key={index} className="diu-metric">
+                <span className="diu-muted">{output.label}</span>
+                <strong data-sign={value !== null && value < 0 ? 'negative' : undefined}>
+                  {value === null ? '—' : value.toLocaleString(undefined, { minimumFractionDigits: output.decimals, maximumFractionDigits: output.decimals })}
+                  {output.unit && <small>{output.unit}</small>}
+                </strong>
+              </div>
+            )
+          })}
+        </div>
+        <div className="diu-metric-note diu-muted">{t('calculator.live')}</div>
+      </div>
+      {/* Wrong logic would otherwise be silent; the formulas let the reader check what the numbers mean. */}
+      <details className="diu-details">
+        <summary>{t('calculator.formulas')}</summary>
+        <dl className="diu-aspects">
+          {item.outputs.map((output, index) => (
+            <div key={index}><dt>{output.label}{output.id !== undefined && ` · ${output.id}`}</dt><dd><code>{output.formula}</code></dd></div>
+          ))}
+        </dl>
+      </details>
+    </section>
+  )
 }
 
 /** Switches between precomputed options; nothing is recomputed here. */
