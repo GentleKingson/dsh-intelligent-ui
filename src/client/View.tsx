@@ -91,11 +91,14 @@ function Item({ item, t, scale }: { item: IntelligentUiItem; t: T; scale?: reado
 function Calculator({ item, t }: { item: IntelligentUiCalculatorItem; t: T }) {
   const defaults = useMemo(() => item.inputs.map(input => input.value), [item])
   const [values, setValues] = useState(defaults)
+  // Text of a number box being edited: it may be empty or partial ("", "1.") while the reader types.
+  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({})
   const formulas = useMemo(() => item.outputs.map(output => parseFormula(output.formula)), [item])
   const results = useMemo(() => computeCalculator(item, values, formulas), [item, values, formulas])
   const id = useId()
   // Typing passes through intermediate values (1 → 10 → 100), so the number box clamps only when it loses focus.
   const set = (index: number, value: number, clamp = true): void => {
+    if (clamp) setDrafts({})
     const input = item.inputs[index]
     if (input === undefined || !Number.isFinite(value)) return
     const next = clamp ? Math.min(input.max ?? value, Math.max(input.min ?? value, value)) : value
@@ -106,7 +109,7 @@ function Calculator({ item, t }: { item: IntelligentUiCalculatorItem; t: T }) {
       <div className="diu-explorer-head">
         <div className="diu-chart-title" role="heading" aria-level={3}>{item.title}</div>
         <button type="button" className="diu-link" disabled={values.every((value, index) => value === defaults[index])}
-          onClick={() => { setValues(defaults) }}>{t('calculator.reset')}</button>
+          onClick={() => { setValues(defaults); setDrafts({}) }}>{t('calculator.reset')}</button>
       </div>
       <div className="diu-filter-fields">
         {item.inputs.map((input, index) => {
@@ -130,8 +133,14 @@ function Calculator({ item, t }: { item: IntelligentUiCalculatorItem; t: T }) {
               <div className="diu-calc-range">
                 <input type="range" aria-label={input.label} min={input.min} max={input.max} step={input.step} value={value}
                   onChange={(event) => { set(index, Number(event.target.value)) }} />
-                <input id={`${id}-${input.id}`} type="number" min={input.min} max={input.max} step={input.step} value={value}
-                  onChange={(event) => { if (event.target.value !== '') set(index, Number(event.target.value), false) }}
+                <input id={`${id}-${input.id}`} type="number" min={input.min} max={input.max} step={input.step}
+                  value={drafts[input.id] ?? value}
+                  onChange={(event) => {
+                    const text = event.target.value
+                    setDrafts({ ...drafts, [input.id]: text })
+                    // An empty or unfinished entry keeps the last number until it parses.
+                    if (text.trim() !== '') set(index, Number(text), false)
+                  }}
                   onBlur={() => { set(index, value) }} />
               </div>
             </div>

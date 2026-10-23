@@ -52,6 +52,7 @@ describe('calculator', () => {
     expect(reject({ ...MORTGAGE, outputs: [{ label: 'x', formula: 'P * later' }, { id: 'later', label: 'y', formula: '1' }] })).toMatch(/unknown name later/)
     expect(reject({ ...MORTGAGE, outputs: [{ label: 'x', formula: 'P / (years - 30)' }] })).toMatch(/not a finite number/)
     expect(reject({ ...MORTGAGE, inputs: [{ id: 'P', label: '本金', value: 1 }] })).toMatch(/min < max/)
+    expect(reject({ ...MORTGAGE, inputs: [{ id: 'years', label: '期限', value: 30, options: [20, 30], min: 25, max: 30 }] })).toMatch(/takes no min, max or step/)
     expect(reject({ ...MORTGAGE, outputs: [{ label: 'x', formula: '1', hidden: true }] })).toMatch(/must be shown/)
   })
 })

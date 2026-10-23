@@ -19,6 +19,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      - run: pnpm test
       - name: Fail if the build changed lib/
         run: |
           if [ -n "$(git status --porcelain -- lib)" ]; then

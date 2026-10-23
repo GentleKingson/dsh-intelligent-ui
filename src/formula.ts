@@ -176,6 +176,9 @@ export function bindCalculator(item: IntelligentUiCalculatorItem): IntelligentUi
   const inputs = item.inputs.map((input) => {
     define(input.id)
     if (input.options !== undefined) {
+      if (input.min !== undefined || input.max !== undefined || input.step !== undefined) {
+        throw new BindingError(`calculator: input ${input.id} has options, so it takes no min, max or step`)
+      }
       if (new Set(input.options).size !== input.options.length) throw new BindingError(`calculator: input ${input.id} repeats an option`)
       if (!input.options.includes(input.value)) throw new BindingError(`calculator: input ${input.id} default is not one of its options`)
       return input
