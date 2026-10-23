@@ -147,6 +147,13 @@ describe('validateInlineArgs', () => {
     expect(chart.ok && chart.items[1]).toMatchObject({ series: [{ values: [12.5, 13, 15.8] }] })
   })
 
+  it('accepts one card of fenced code per option, as the prompt tells the model (T4)', () => {
+    const code = (lang: string, body: string) => ({ title: lang, markdown: `\`\`\`python\n${body}\n\`\`\`` })
+    const cards = { type: 'cards', cards: [code('csv', 'import csv\nrows = list(csv.DictReader(open("a.csv")))'),
+      code('pandas', 'import pandas as pd\ndf = pd.read_csv("a.csv")  # dtype<str>')] }
+    expect(validateInlineArgs({ items: [MARKDOWN, cards] }).ok).toBe(true)
+  })
+
   it('drops a table that repeats a chart\'s data and keeps one with other columns', () => {
     const repeat = { type: 'table', headers: CHART.headers, rows: CHART.rows }
     const extra = { type: 'table', headers: [...CHART.headers, '环比'], rows: CHART.rows.map((row, index) => [...row, `${index}%`]) }
