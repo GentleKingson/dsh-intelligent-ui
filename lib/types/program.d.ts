@@ -60,10 +60,12 @@ export declare function bindTable(data: IntelligentUiTableData, presentation?: '
 /**
  * Bind a chart to verified table columns; every plotted value is parsed from
  * the table's own cell text, so the chart and its "view data" table agree.
+ * A series column that is not numeric, or whose unit differs from the first
+ * plottable series, stays table-only instead of rejecting the whole chart.
  * @param source - table data with analyzed columns.
  * @param item - chart kind, category column id, and series column ids.
  * @returns the resolved chart item.
- * @throws {@link BindingError} when a column cannot serve its role.
+ * @throws {@link BindingError} when the axis is unusable or no series can be plotted.
  */
 export declare function bindChart(source: Pick<SourceTable, 'data' | 'columns'>, item: {
     readonly chart: 'bar' | 'line';

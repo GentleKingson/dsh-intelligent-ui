@@ -108,8 +108,10 @@ function Scenarios({ item, t }: { item: IntelligentUiScenariosItem; t: T }) {
 function Explorer({ item, t }: { item: IntelligentUiExplorerItem; t: T }) {
   const [filters, setFilters] = useState(() => explorerDefaults(item))
   const [selectedKey, setSelected] = useState(item.table.rows[0]?.[item.selection] ?? '')
+  const [query, setQuery] = useState('')
   const id = useId()
-  const { rows, selected, metrics } = useMemo(() => explore(item, filters, selectedKey), [item, filters, selectedKey])
+  const { rows, selected, metrics } = useMemo(() => explore(item, filters, selectedKey, 0, query), [item, filters, selectedKey, query])
+  const visibleTable = useMemo(() => ({ ...item.table, rows }), [item.table, rows])
   const at = selected === undefined ? -1 : rows.indexOf(selected)
   const selectRow = (row: readonly string[]): void => {
     setFilters(filters.map((value, index) => value === null || value === row[item.filters[index]?.column ?? 0]
@@ -121,33 +123,39 @@ function Explorer({ item, t }: { item: IntelligentUiExplorerItem; t: T }) {
       <div className="diu-explorer-head">
         <div className="diu-chart-title" role="heading" aria-level={3}>{item.title}</div>
         <button type="button" className="diu-link" onClick={() => {
-          setFilters(explorerDefaults(item)); setSelected(item.table.rows[0]?.[item.selection] ?? '')
+          setFilters(explorerDefaults(item)); setQuery(''); setSelected(item.table.rows[0]?.[item.selection] ?? '')
         }}>{t('explorer.reset')}</button>
       </div>
-      {item.filters.length > 0 && (
-        <div className="diu-filter-fields">
-          {item.filters.map((filter, index) => {
-            const options = [...new Set(item.table.rows.map(row => row[filter.column] ?? ''))]
-            const value = filters[index]
-            return (
-              <label key={filter.column}>
-                <span>{item.table.headers[filter.column]}</span>
-                <select value={value == null ? '' : options.indexOf(value)} onChange={(event) => {
-                  const next = [...filters]
-                  next[index] = event.target.value === '' ? null : options[Number(event.target.value)] ?? ''
-                  // A4 and B4 may name the same step in two scenarios; keep its position when names differ.
-                  const nextSelected = explore(item, next, selectedKey, item.steps ? at : 0).selected
-                  setFilters(next)
-                  setSelected(nextSelected?.[item.selection] ?? '')
-                }}>
-                  {filter.all && <option value="">{t('explorer.all')}</option>}
-                  {options.map((option, at) => <option key={at} value={at}>{option || t('chart.missing')}</option>)}
-                </select>
-              </label>
-            )
-          })}
-        </div>
-      )}
+      <div className="diu-filter-fields">
+        <label>
+          <span>{t('explorer.search')}</span>
+          <input type="search" value={query} placeholder={t('table.filterPlaceholder')} onChange={(event) => {
+            const next = event.target.value
+            setQuery(next)
+            setSelected(explore(item, filters, selectedKey, 0, next).selected?.[item.selection] ?? '')
+          }} />
+        </label>
+        {item.filters.map((filter, index) => {
+          const options = [...new Set(item.table.rows.map(row => row[filter.column] ?? ''))]
+          const value = filters[index]
+          return (
+            <label key={filter.column}>
+              <span>{item.table.headers[filter.column]}</span>
+              <select value={value == null ? '' : options.indexOf(value)} onChange={(event) => {
+                const next = [...filters]
+                next[index] = event.target.value === '' ? null : options[Number(event.target.value)] ?? ''
+                // A4 and B4 may name the same step in two scenarios; keep its position when names differ.
+                const nextSelected = explore(item, next, selectedKey, item.steps ? at : 0, query).selected
+                setFilters(next)
+                setSelected(nextSelected?.[item.selection] ?? '')
+              }}>
+                {filter.all && <option value="">{t('explorer.all')}</option>}
+                {options.map((option, at) => <option key={at} value={at}>{option || t('chart.missing')}</option>)}
+              </select>
+            </label>
+          )
+        })}
+      </div>
       {item.plot !== undefined && <ExplorerPlot item={item} rows={rows} selected={selected} onSelect={selectRow} t={t} />}
       {metrics.length > 0 && (
         <div aria-live="polite" aria-atomic="true">
@@ -190,8 +198,9 @@ function Explorer({ item, t }: { item: IntelligentUiExplorerItem; t: T }) {
         )}
       </section>
       <details className="diu-details">
-        <summary>{t('explorer.source', { total: item.table.rows.length })}</summary>
-        <TableView table={item.table} t={t} onSelect={selectRow} selectedRow={selected} selectColumn={item.selection} />
+        <summary>{t('explorer.source', { shown: rows.length, total: item.table.rows.length })}</summary>
+        {/* The explorer's search and filters already chose these rows; a second keyword box would diverge from them. */}
+        <TableView table={visibleTable} t={t} onSelect={selectRow} selectedRow={selected} selectColumn={item.selection} searchable={false} />
       </details>
     </section>
   )
@@ -365,11 +374,12 @@ function compareCells(left: string, right: string): number {
  * @param props - table data and translator.
  * @returns the table with its controls.
  */
-export function TableView({ table, t, onSelect, selectedRow, selectColumn = 0 }: {
+export function TableView({ table, t, onSelect, selectedRow, selectColumn = 0, searchable = true }: {
   table: IntelligentUiTableData; t: T
   onSelect?: ((row: readonly string[]) => void) | undefined
   selectedRow?: readonly string[] | undefined
   selectColumn?: number | undefined
+  searchable?: boolean | undefined
 }) {
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<{ column: number; dir: SortDir } | null>(null)
@@ -397,14 +407,16 @@ export function TableView({ table, t, onSelect, selectedRow, selectColumn = 0 }:
   }
   return (
     <div className="diu-table" data-small={table.rows.length <= SMALL_ROWS || undefined}>
-      <div className="diu-controls">
-        <label htmlFor={filterId} className="diu-sr">{t('table.filter')}</label>
-        <input id={filterId} type="search" value={filter} placeholder={t('table.filterPlaceholder')}
-          onChange={(event) => { setFilter(event.target.value) }} />
-        <button type="button" className="diu-link" disabled={filter === '' && sort === null}
-          onClick={() => { setFilter(''); setSort(null) }}>{t('table.clear')}</button>
-        <span className="diu-muted" aria-live="polite">{t('table.count', { shown: rows.length, total: table.rows.length })}</span>
-      </div>
+      {searchable && (
+        <div className="diu-controls">
+          <label htmlFor={filterId} className="diu-sr">{t('table.filter')}</label>
+          <input id={filterId} type="search" value={filter} placeholder={t('table.filterPlaceholder')}
+            onChange={(event) => { setFilter(event.target.value) }} />
+          <button type="button" className="diu-link" disabled={filter === '' && sort === null}
+            onClick={() => { setFilter(''); setSort(null) }}>{t('table.clear')}</button>
+          <span className="diu-muted" aria-live="polite">{t('table.count', { shown: rows.length, total: table.rows.length })}</span>
+        </div>
+      )}
       <div className="diu-scroll">
         <table>
           <thead>
@@ -534,6 +546,7 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
         <span className="diu-chart-title">{t('chart.title', { x: item.xLabel, kind: t(item.chart === 'bar' ? 'chart.bar' : 'chart.line') })}</span>
         {item.unit !== '' && <span className="diu-muted">{t('chart.unit', { unit: item.unit })}</span>}
         {!zeroBased && <span className="diu-muted">{t('chart.axisFrom', { min: formatNumber(min) })}</span>}
+        {item.tableOnly !== undefined && <span className="diu-muted">{t('chart.tableOnly', { columns: item.tableOnly.join('、') })}</span>}
       </figcaption>
       <div className="diu-legend" role="group" aria-label={t('chart.legend')}>
         {item.series.map((series, index) => (

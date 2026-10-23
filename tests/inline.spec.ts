@@ -124,6 +124,29 @@ describe('validateInlineArgs', () => {
     })
   })
 
+  it('plots a partial year as a sparse series and keeps an off-unit series table-only (T1 follow-up)', () => {
+    const revenue = {
+      type: 'chart', chart: 'bar', headers: ['季度', '2024', '2025', '2026', '同比'], x: 0, series: [1, 2, 3, 4],
+      rows: [['Q1', '1000', '1200', '1500', '+20%'], ['Q2', '1300', '1450', '—', '+11.5%'], ['Q3', '1500', '1600', '—', '+6.7%'], ['Q4', '1700', '2100', '—', '+23.5%']],
+    }
+    const outcome = validateInlineArgs({ items: [MARKDOWN, revenue] })
+    expect(outcome.ok && outcome.items[1]).toMatchObject({
+      series: [{ name: '2024' }, { name: '2025' }, { name: '2026', values: [1500, null, null, null] }], tableOnly: ['同比'],
+    })
+    expect(rejectsItem({ ...revenue, headers: ['季度', '说明'], rows: revenue.rows.map(row => [row[0], '增长']), series: [1] })).toContain('same-unit numeric')
+  })
+
+  it('unwraps a whole-cell **bold** change marker so the cell stays a plain number (T1 follow-up)', () => {
+    const marked = { type: 'table', headers: ['季度', '2025', '备注'],
+      rows: [['Q3', '1600', ''], ['Q4', '**2100**', '**已修订**'], ['全年', ' **6,350** ', 'a **b** c'], ['x', '**a** and **b**', '**']] }
+    const outcome = validateInlineArgs({ items: [MARKDOWN, marked] })
+    expect(outcome.ok && outcome.items[1]).toMatchObject({
+      table: { rows: [['Q3', '1600', ''], ['Q4', '2100', '已修订'], ['全年', '6,350', 'a **b** c'], ['x', '**a** and **b**', '**']] },
+    })
+    const chart = validateInlineArgs({ items: [MARKDOWN, { ...CHART, rows: [['1月', '**12.5**'], ['2月', '13'], ['3月', '15.8']] }] })
+    expect(chart.ok && chart.items[1]).toMatchObject({ series: [{ values: [12.5, 13, 15.8] }] })
+  })
+
   it('drops a table that repeats a chart\'s data and keeps one with other columns', () => {
     const repeat = { type: 'table', headers: CHART.headers, rows: CHART.rows }
     const extra = { type: 'table', headers: [...CHART.headers, '环比'], rows: CHART.rows.map((row, index) => [...row, `${index}%`]) }

@@ -39,8 +39,8 @@ body[data-ds-dark-theme] .diu-root{--diu-s0:#7aa2f7;--diu-s1:#f0a35e;--diu-s2:#5
 .diu-explorer-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
 .diu-filter-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px}
 .diu-filter-fields label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--dsw-alias-label-secondary,#666)}
-.diu-filter-fields select{font:inherit;font-size:14px;color:inherit;background:var(--dsw-alias-bg-l1,Canvas);border:1px solid var(--diu-border);border-radius:8px;padding:10px;min-width:0;max-width:100%}
-.diu-filter-fields select:focus-visible{outline:2px solid var(--dsw-focus-ring-color,#3b6fd8);outline-offset:1px}
+.diu-filter-fields select,.diu-filter-fields input{box-sizing:border-box;font:inherit;font-size:14px;color:inherit;background:var(--dsw-alias-bg-l1,Canvas);border:1px solid var(--diu-border);border-radius:8px;padding:10px;min-width:0;max-width:100%}
+.diu-filter-fields select:focus-visible,.diu-filter-fields input:focus-visible{outline:2px solid var(--dsw-focus-ring-color,#3b6fd8);outline-offset:1px}
 .diu-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr));gap:10px}
 .diu-metric{display:flex;flex-direction:column;gap:4px;border:1px solid var(--diu-border);border-radius:10px;padding:12px;min-width:0;overflow-wrap:anywhere}
 .diu-metric strong{font-size:22px;font-variant-numeric:tabular-nums}
