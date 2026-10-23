@@ -32,7 +32,7 @@ export const zh = {
   'explorer.previous': '上一步',
   'explorer.next': '下一步',
   'explorer.computed': '根据当前筛选计算',
-  'explorer.source': '查看原始数据 · {shown} / {total} 行，点击记录可同步筛选与详情',
+  'explorer.source': '原始数据 · {shown} / {total} 行，点击记录可同步筛选与详情',
   'explorer.search': '搜索记录',
   'plot.scatter': '散点图',
   'plot.timeline': '重试时间轴',
