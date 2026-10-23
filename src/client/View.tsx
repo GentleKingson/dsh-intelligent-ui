@@ -130,20 +130,29 @@ function CardView({ title, markdown, t }: { title: string; markdown: string; t: 
 
 /** Source cells stay plain text, as in TableView; card formatting never interprets their Markdown. */
 function Comparison({ table, t }: { table: IntelligentUiTableData; t: T }) {
+  const [selectedIndex, setSelected] = useState(0)
+  const selected = Math.min(selectedIndex, Math.max(0, table.rows.length - 1))
+  const row = table.rows[selected]
+  const detailsId = useId()
   return (
     <div className="diu-comparison">
-      <ul className="diu-cards">
+      <div className="diu-segments" role="group" aria-label={t('comparison.select')}>
+        <span className="diu-muted">{t('comparison.select')}</span>
         {table.rows.map((row, index) => (
-          <li key={index} className="diu-card">
-            <div className="diu-card-title" role="heading" aria-level={4}>{row[0]}</div>
-            <dl className="diu-aspects">
-              {table.headers.slice(1).map((header, column) => (
-                <div key={column}><dt>{header}</dt><dd>{row[column + 1]}</dd></div>
-              ))}
-            </dl>
-          </li>
+          <button key={index} type="button" aria-pressed={index === selected} aria-controls={detailsId}
+            onClick={() => { setSelected(index) }}>{row[0]}</button>
         ))}
-      </ul>
+      </div>
+      {row !== undefined && (
+        <section id={detailsId} className="diu-card diu-selection" aria-live="polite" aria-atomic="true">
+          <div className="diu-card-title" role="heading" aria-level={4}>{row[0]}</div>
+          <dl className="diu-aspects">
+            {table.headers.slice(1).map((header, column) => (
+              <div key={column}><dt>{header}</dt><dd>{row[column + 1]}</dd></div>
+            ))}
+          </dl>
+        </section>
+      )}
       <details className="diu-details">
         <summary>{t('comparison.viewTable')}</summary>
         <TableView table={table} t={t} />
@@ -283,6 +292,7 @@ function Marker({ shape, x, y }: { shape: number; x: number; y: number }) {
 export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; scale?: readonly number[] | undefined }) {
   const [hidden, setHidden] = useState<ReadonlySet<number>>(new Set())
   const [active, setActive] = useState<number | null>(null)
+  const [selectedIndex, setSelected] = useState(0)
   const [showData, setShowData] = useState(false)
   const dataId = useId()
   // Draw at the rendered width so axis text keeps its size on narrow screens.
@@ -303,6 +313,8 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
   const plotW = width - MARGIN.left - MARGIN.right
   const plotH = HEIGHT - MARGIN.top - MARGIN.bottom
   const count = item.categories.length
+  const selected = Math.min(selectedIndex, Math.max(0, count - 1))
+  const selectedRow = item.table.rows[selected]
   const band = plotW / count
   const y = (value: number): number => MARGIN.top + (max - value) / (max - min) * plotH
   const center = (index: number): number => MARGIN.left + band * (index + 0.5)
@@ -395,10 +407,10 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
           {item.categories.map((_, index) => (
             <rect key={index} className="diu-hit" x={MARGIN.left + band * index} y={MARGIN.top} width={band} height={plotH}
               tabIndex={0} role="img" aria-label={pointText(index)}
-              onMouseEnter={() => { setActive(index) }} onFocus={() => { setActive(index) }} onBlur={() => { setActive(null) }}
-              onClick={() => { setActive(index) }} />
+              onMouseEnter={() => { setActive(index) }} onFocus={() => { setActive(index); setSelected(index) }} onBlur={() => { setActive(null) }}
+              onClick={() => { setActive(index); setSelected(index) }} />
           ))}
-          {active !== null && <line className="diu-cursor" x1={center(active)} x2={center(active)} y1={MARGIN.top} y2={MARGIN.top + plotH} />}
+          {count > 0 && <line className="diu-cursor" x1={center(active ?? selected)} x2={center(active ?? selected)} y1={MARGIN.top} y2={MARGIN.top + plotH} />}
         </svg>
         {active !== null && (
           <div className="diu-tooltip" role="tooltip"
@@ -419,6 +431,22 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
           </div>
         )}
       </div>
+      {selectedRow !== undefined && (
+        <div className="diu-card diu-selection">
+          <div className="diu-selection-control">
+            <label htmlFor={`${dataId}-category`}>{t('chart.select')}</label>
+            <select id={`${dataId}-category`} value={selected} aria-controls={`${dataId}-selection`}
+              onChange={(event) => { setSelected(Number(event.target.value)); setActive(null) }}>
+              {item.categories.map((category, index) => <option key={index} value={index}>{category}</option>)}
+            </select>
+          </div>
+          <dl id={`${dataId}-selection`} className="diu-aspects" aria-live="polite" aria-atomic="true">
+            {item.table.headers.map((header, column) => (
+              <div key={column}><dt>{header}</dt><dd data-kind={parseCell(selectedRow[column] ?? '').kind}>{selectedRow[column]}</dd></div>
+            ))}
+          </dl>
+        </div>
+      )}
       <button type="button" className="diu-link" aria-expanded={showData} aria-controls={dataId}
         onClick={() => { setShowData(!showData) }}>{t(showData ? 'chart.hideData' : 'chart.viewData')}</button>
       {showData && <div id={dataId}><TableView table={item.table} t={t} /></div>}

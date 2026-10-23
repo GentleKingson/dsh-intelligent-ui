@@ -1,0 +1,262 @@
+{
+  "round": 3,
+  "purpose": "Link selected options/data points to source explanations and values using existing client components.",
+  "environment": {
+    "date": "2026-10-23",
+    "app": "DSH 0.2.1-rc.2 macOS desktop",
+    "mode": "smart-auto",
+    "primaryProvider": "OpenCode Go",
+    "primaryModel": "deepseek-v4.1-flash",
+    "reasoning": "High",
+    "supplementaryProvider": "DeepSeek official",
+    "supplementaryModel": "DeepSeek-V4.1-Flash 1017 / High",
+    "packageSha256": "d0d5b8f0007a0dcede6cf8ac5368f38dba6282ee162cd6517bdd2d72dddb1560"
+  },
+  "scope": {
+    "schemaChange": false,
+    "newDependencies": false,
+    "selectionPersistence": "Client-local; resets on reopen/restart. Source records remain unchanged.",
+    "selectionData": "Original source row only; no calculation or generated explanation on selection.",
+    "sourcePrompts": "Four structured cases: one short conclusion plus a source Markdown table for A-C; one sentence for D. Main answer generation was asked not to search or call tools."
+  },
+  "automatedChecks": {
+    "typecheck": "passed",
+    "vitest": {
+      "files": 3,
+      "passed": 130
+    },
+    "pack": "passed",
+    "diffCheck": "passed",
+    "installedArtifactsMatch": [
+      "lib/client.js",
+      "lib/types/smart-auto.js",
+      "lib/types/inline.js"
+    ]
+  },
+  "primaryCases": [
+    {
+      "case": "A cache comparison",
+      "source": "Redis, Memcached, process-local cache; persistence, shared instances, usage",
+      "result": "Comparison selector generated. Mouse selected Memcached; Tab and Space selected process-local cache. Detail heading and all three raw fields changed together.",
+      "passed": true
+    },
+    {
+      "case": "B quarterly revenue",
+      "source": {
+        "unit": "万元",
+        "2024": [
+          1000,
+          1300,
+          1500,
+          1700
+        ],
+        "2025": [
+          1200,
+          1450,
+          1600,
+          2000
+        ]
+      },
+      "result": "Two-series line chart. Q4 dropdown showed 1700 / 2000 with original unit headers; keyboard focus on Q3 showed 1500 / 1600. Legend hide retained the complete source row.",
+      "passed": true
+    },
+    {
+      "case": "C missing and negative values",
+      "source": {
+        "years": [
+          2020,
+          2021,
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "netProfit亿元": [
+          -3.2,
+          -1.5,
+          0.8,
+          "未公布",
+          2.1,
+          3.4
+        ]
+      },
+      "result": "2023 selection showed 未公布; stored series contained null and rendered a visible gap. 2020 selection preserved -3.2 and source unit.",
+      "passed": true
+    },
+    {
+      "case": "D TCP short answer",
+      "result": "One plain sentence; no interactive view. Four turns and four main generation steps produced exactly three views.",
+      "passed": true
+    }
+  ],
+  "primaryStoredViews": [
+    {
+      "turn": 1,
+      "schema": 1,
+      "components": [
+        "markdown",
+        "table:comparison"
+      ],
+      "enhancementDurationMs": 1276
+    },
+    {
+      "turn": 2,
+      "schema": 1,
+      "components": [
+        "markdown",
+        "chart"
+      ],
+      "enhancementDurationMs": 1296
+    },
+    {
+      "turn": 3,
+      "schema": 1,
+      "components": [
+        "markdown",
+        "chart"
+      ],
+      "enhancementDurationMs": 1459
+    }
+  ],
+  "history": {
+    "preRoundViewsUnchanged": 9,
+    "preRoundViews": 9,
+    "preFinalInstallViewsUnchanged": 12,
+    "preFinalInstallViews": 12,
+    "newPrimaryViews": 3,
+    "restartRestored": "All three supplementary case views restored; selection reset to Redis / Q1 / 2020. Prior comparison history also gained selection without regeneration."
+  },
+  "visualAndInteractionChecks": {
+    "light": "passed",
+    "dark": "passed after fixing selected comparison button contrast",
+    "narrowWidth": "1124 physical pixels (562 CSS px at 2x); selection controls, details, missing-value panel wrap without clipping",
+    "mouseChartClick": "Q2 selected and source values changed (supplementary case)",
+    "fullSourceTable": "Expand, filter and clear verified; filtering source table does not change selected explanation.",
+    "preferencesRestored": [
+      "Follow system theme",
+      "OpenCode Go DeepSeek High",
+      "Sidebar open",
+      "Original 2560 x 1560 physical window size"
+    ]
+  },
+  "uiAssertions": [
+    {
+      "name": "旧记录直接获得方案选择联动",
+      "passed": true
+    },
+    {
+      "name": "真实案例A选择Memcached联动原始说明",
+      "passed": true
+    },
+    {
+      "name": "方案键盘Tab和Space联动说明",
+      "passed": true
+    },
+    {
+      "name": "方案原表筛选仍可用且不改变选中方案",
+      "passed": true
+    },
+    {
+      "name": "真实营收Q4联动1700与2000并保留万元表头",
+      "passed": true
+    },
+    {
+      "name": "隐藏图例不丢失完整原始行数据",
+      "passed": true
+    },
+    {
+      "name": "键盘聚焦图中Q3同步选择和1500与1600",
+      "passed": true
+    },
+    {
+      "name": "数据点失焦后所选Q4数值仍保留",
+      "passed": true
+    },
+    {
+      "name": "鼠标点击图中Q2同步1300与1450",
+      "passed": true
+    },
+    {
+      "name": "真实案例2023原始数据面板保留未公布",
+      "passed": true
+    },
+    {
+      "name": "缺失年份选择提交后仍为2023",
+      "passed": true
+    },
+    {
+      "name": "年份下拉键盘切换2020保留负号和亿元单位",
+      "passed": true
+    },
+    {
+      "name": "缺失年份可从负数再切回且不填零",
+      "passed": true
+    },
+    {
+      "name": "四个真实回合仅三个交互视图且短答不增强",
+      "passed": true
+    },
+    {
+      "name": "窄栏保持2023缺失选择和数据",
+      "passed": true
+    },
+    {
+      "name": "窄栏方案选择仍与原文说明一致",
+      "passed": true
+    },
+    {
+      "name": "restart restores all three views and resets selection",
+      "passed": true
+    },
+    {
+      "name": "final dark selection surface remains legible",
+      "passed": true
+    },
+    {
+      "name": "OpenCode Go DeepSeek High selected",
+      "passed": true
+    },
+    {
+      "name": "OpenCode Go A Memcached links source explanation",
+      "passed": true
+    },
+    {
+      "name": "OpenCode Go A keyboard links process-cache details",
+      "passed": true
+    },
+    {
+      "name": "OpenCode Go B Q4 links both raw values and units",
+      "passed": true
+    },
+    {
+      "name": "OpenCode Go legend hides plot only; source Q4 stays complete",
+      "passed": true
+    },
+    {
+      "name": "OpenCode Go chart keyboard focus selects Q3 and raw values",
+      "passed": true
+    },
+    {
+      "name": "OpenCode Go C missing stays 未公布 rather than zero",
+      "passed": true
+    },
+    {
+      "name": "OpenCode Go C negative value and source units preserved",
+      "passed": true
+    },
+    {
+      "name": "OpenCode Go four turns produce exactly three interactive views",
+      "passed": true
+    },
+    {
+      "name": "OpenCode Go TCP remains plain text",
+      "passed": true
+    }
+  ],
+  "limitations": [
+    "Real UI validation used smart-auto on DSH 0.2.1-rc.2 macOS. Inline-stream and DSH 0.2.0-rc.2 were not run in the app this round.",
+    "Source explanations are displayed verbatim and are not recomputed recommendations. The supplementary official-model missing-data answer said continuous growth despite the 2023 gap; the plugin preserves that source wording and the missing-data gap. The primary OpenCode Go conclusion explicitly mentioned that 2023 was unpublished.",
+    "No new frontend testing framework or dependency was added; existing 130 automated tests and 28 assertions against the actual native DSH UI cover this round.",
+    "Raw AX snapshots and screenshots remain local evidence and are not included in the commit."
+  ]
+}
