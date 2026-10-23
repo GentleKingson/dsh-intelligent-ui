@@ -162,15 +162,16 @@ function niceStep(span: number): number {
  * @param chart - chart kind.
  * @returns a finite axis with a bounded tick list.
  */
-export function valueAxis(values: readonly number[], chart: 'bar' | 'line'): ValueAxis {
+export function valueAxis(values: readonly number[], chart: 'bar' | 'line' | 'scatter'): ValueAxis {
   const finite = values.filter(Number.isFinite)
   let low = finite.length === 0 ? 0 : Math.min(...finite)
   let high = finite.length === 0 ? 0 : Math.max(...finite)
   const magnitude = Math.max(Math.abs(low), Math.abs(high))
   const positive = low > 0
-  const zoom = chart === 'line' && (positive || high < 0) && (high - low) * 3 < magnitude
+  const negative = high < 0
+  const zoom = chart === 'scatter' || (chart === 'line' && (positive || negative) && (high - low) * 3 < magnitude)
   if (zoom) {
-    const pad = high > low ? (high - low) * 0.1 : magnitude * 0.05
+    const pad = high > low ? (high - low) * 0.1 : (chart === 'scatter' ? Math.max(magnitude * 0.05, 1) : magnitude * 0.05)
     low -= pad
     high += pad
   } else {
@@ -183,7 +184,7 @@ export function valueAxis(values: readonly number[], chart: 'bar' | 'line'): Val
   let max = Math.ceil(high / step) * step
   // Padding never pushes a one-sided series across zero.
   if (zoom && positive) min = Math.max(0, min)
-  else if (zoom) max = Math.min(0, max)
+  else if (zoom && negative) max = Math.min(0, max)
   const ticks: number[] = []
   for (let tick = min; tick <= max + step / 2; tick += step) ticks.push(Number(tick.toPrecision(12)))
   return { min, max, ticks, zeroBased: min <= 0 && max >= 0 }

@@ -67,5 +67,5 @@ export interface ValueAxis {
  * @param chart - chart kind.
  * @returns a finite axis with a bounded tick list.
  */
-export declare function valueAxis(values: readonly number[], chart: 'bar' | 'line'): ValueAxis;
+export declare function valueAxis(values: readonly number[], chart: 'bar' | 'line' | 'scatter'): ValueAxis;
 //# sourceMappingURL=numeric.d.ts.map

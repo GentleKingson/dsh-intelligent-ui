@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { explore, explorerDefaults } from '../src/explorer.ts'
+import { explore, explorerDefaults, explorerPlot } from '../src/explorer.ts'
 import { InlineArgsStream, validateInlineArgs } from '../src/inline.ts'
 import type { IntelligentUiExplorerItem } from '../src/types.ts'
 
@@ -76,9 +76,10 @@ describe('linked dataset', () => {
   })
 
   it('uses identical validation for a closed streamed component and the final call', () => {
-    const raw = JSON.stringify({ items: [{ type: 'markdown', markdown: '结论' }, PENGUINS] })
+    const item = { ...PENGUINS, plot: { type: 'scatter', x: 3, y: 5, groupBy: 1 } }
+    const raw = JSON.stringify({ items: [{ type: 'markdown', markdown: '结论' }, item] })
     const preview = new InlineArgsStream().feed(raw)
-    expect(preview.items[1]).toEqual({ ok: true, item: resolve(PENGUINS) })
+    expect(preview.items[1]).toEqual({ ok: true, item: resolve(item) })
   })
 
   it('keeps the step position when scenarios use different record names, and clamps shorter sequences', () => {
@@ -89,6 +90,70 @@ describe('linked dataset', () => {
     })
     expect(explore(item, ['恢复'], 'A2', 1).selected).toEqual(['B2', '恢复', '8'])
     expect(explore(item, ['短序列'], 'B2', 1).selected).toEqual(['C1', '短序列', '0'])
+  })
+
+  it('plots separate-unit coordinates, with stable source domains/groups and shared filtered row identity', () => {
+    const item = resolve({ ...PENGUINS,
+      rows: PENGUINS.rows.map(row => row.map((cell, column) => typeof cell !== 'number' ? cell
+        : column === 3 ? `${cell}mm` : column === 5 ? `${cell}g` : cell)),
+      plot: { type: 'scatter', x: 3, y: 5, groupBy: 1 } })
+    const all = explorerPlot(item, item.table.rows)
+    expect(all?.points).toHaveLength(10)
+    expect(all?.points[0]).toMatchObject({ x: 39.1, y: 3750, group: 0 })
+    expect(all?.points.some(point => ['4', '272'].includes(point.row[0] ?? ''))).toBe(false)
+    const filtered = explore(item, ['Gentoo', 'male'], '154')
+    const plot = explorerPlot(item, filtered.rows)
+    expect(plot?.points).toEqual([{ row: filtered.selected, x: 50, y: 5700, group: 2 }])
+    expect(plot?.points[0]?.row).toBe(filtered.selected)
+    expect(plot?.xAxis).toEqual(all?.xAxis)
+    expect(plot?.yAxis).toEqual(all?.yAxis)
+    expect(plot?.groups).toEqual(all?.groups)
+  })
+
+  it('excludes either missing coordinate without discarding the source row or its valid mass', () => {
+    const item = resolve({ ...PENGUINS, rows: PENGUINS.rows.map((row, index) => index === 0 ? row.map((cell, col) => col === 3 ? 'NA' : cell) : row),
+      plot: { type: 'scatter', x: 3, y: 5 } })
+    const state = explore(item, explorerDefaults(item), '1')
+    expect(state.rows).toHaveLength(12)
+    expect(state.metrics[1]?.value).toBe(10)
+    expect(explorerPlot(item, state.rows)?.points).toHaveLength(9)
+    expect(state.selected?.[3]).toBe('NA')
+    expect(explorerPlot(item, explore(item, ['Chinstrap', 'NA'], '1').rows)?.points).toEqual([])
+  })
+
+  it('uses real retry times and intervals in both scenarios without losing the selected attempt', () => {
+    const item = resolve({ type: 'explorer', title: '重试', headers: ['序列', '尝试', '时刻(s)', '去向'],
+      rows: ['故障', '恢复'].flatMap(scenario => [0, 1, 3, 8].map((time, index) => [scenario, index, time, scenario === '故障' ? 'Z' : 'Y'])),
+      selection: 1, filters: [{ column: 0, all: false }], steps: true, plot: { type: 'timeline', x: 2, groupBy: 0 } })
+    const fault = explore(item, ['故障'], '3')
+    const recovery = explore(item, ['恢复'], '3')
+    const plot = explorerPlot(item, recovery.rows)
+    expect(plot?.points.map(point => point.x)).toEqual([0, 1, 3, 8])
+    expect(plot?.points.slice(1).map((point, index) => point.x - (plot.points[index]?.x ?? 0))).toEqual([1, 2, 5])
+    expect(plot?.points.at(-1)?.row).toBe(recovery.selected)
+    expect(recovery.selected?.[3]).toBe('Y')
+    expect(plot?.xAxis).toEqual(explorerPlot(item, fault.rows)?.xAxis)
+    expect(plot?.xAxis.min).toBe(0)
+  })
+
+  it.each([
+    ['plot index', { type: 'scatter', x: 8, y: 5 }],
+    ['same axes', { type: 'scatter', x: 3, y: 3 }],
+    ['text coordinates', { type: 'scatter', x: 1, y: 5 }],
+    ['group index', { type: 'scatter', x: 3, y: 5, groupBy: 8 }],
+    ['too many groups', { type: 'scatter', x: 3, y: 5, groupBy: 0 }],
+    ['unordered/missing timeline', { type: 'timeline', x: 3 }],
+  ])('rejects %s instead of drawing misleading geometry', (_name, plot) => {
+    expect(() => resolve({ ...PENGUINS, plot })).toThrow()
+  })
+
+  it('rejects mixed units on one coordinate axis, and negative or repeated retry times', () => {
+    expect(() => resolve({ ...PENGUINS, plot: { type: 'scatter', x: 3, y: 5 },
+      rows: PENGUINS.rows.map((row, index) => index < 2 ? row.map((cell, col) => col === 3 ? `${cell}${index === 0 ? 'mm' : 'cm'}` : cell) : row) })).toThrow()
+    for (const times of [[-1, 1], [0, 0], [2, 1], [0, 'NA']]) {
+      expect(() => resolve({ type: 'explorer', title: '重试', headers: ['尝试', '时刻'], rows: times.map((time, i) => [i, time]),
+        selection: 0, plot: { type: 'timeline', x: 1 } })).toThrow()
+    }
   })
 
   it.each([

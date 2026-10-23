@@ -45,6 +45,17 @@ body[data-ds-dark-theme] .diu-root{--diu-s0:#7aa2f7;--diu-s1:#f0a35e;--diu-s2:#5
 .diu-metric{display:flex;flex-direction:column;gap:4px;border:1px solid var(--diu-border);border-radius:10px;padding:12px;min-width:0;overflow-wrap:anywhere}
 .diu-metric strong{font-size:22px;font-variant-numeric:tabular-nums}
 .diu-metric-note{margin-top:6px}
+.diu-explorer-plot{border:1px solid var(--diu-border);border-radius:10px;padding:12px;min-width:0}
+.diu-explorer-plot figcaption{font-size:12px;overflow-wrap:anywhere}
+.diu-plot-key{display:inline-flex;align-items:center;gap:6px;font-size:12px}
+.diu-plot-key svg>*{fill:var(--c)}
+.diu-mark{cursor:pointer;outline:none}
+.diu-mark>circle,.diu-mark>rect,.diu-mark>path{fill:var(--c)}
+.diu-mark .diu-point-hit{fill:transparent;stroke:none}
+.diu-mark .diu-point-selected{fill:var(--dsw-alias-bg-l1,Canvas);stroke:currentColor;stroke-width:2}
+.diu-mark:focus-visible .diu-point-hit{stroke:currentColor;stroke-width:2;stroke-dasharray:2 2}
+.diu-mark text,.diu-interval text{fill:var(--dsw-alias-label-secondary,#666);font-size:11px}
+.diu-interval line{stroke:var(--c);stroke-opacity:.4;stroke-width:6;stroke-linecap:round}
 .diu-stepper{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--diu-border);padding-bottom:10px;margin-bottom:4px}
 .diu-stepper button{min-height:36px}
 .diu-explorer .diu-wide{grid-column:1/-1}
