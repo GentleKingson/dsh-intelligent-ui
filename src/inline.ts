@@ -10,6 +10,7 @@ import type { IntelligentUiBasicItem, IntelligentUiItem, IntelligentUiTableData 
 import { analyzeColumn } from './numeric.ts'
 import { BindingError, bindChart, bindTable } from './program.ts'
 import { LIMITS } from './limits.ts'
+import { bindExplorer } from './explorer.ts'
 
 /** Wire name of the view tool; also the Client toolview key. */
 export const INLINE_TOOL_NAME = 'render_ui'
@@ -17,16 +18,33 @@ export const INLINE_TOOL_NAME = 'render_ui'
 /** Agent-level guidance registered beside the tool for root agents only. */
 export const INLINE_PROMPT = `# Interactive view (render_ui)
 Call render_ui whenever the main content of your answer is one of: 2+ options, tools, or approaches compared on the same aspects (cards, or a table of option x aspect); a list of 4+ items that share the same fields (a table, e.g. codes with meaning and usage); or numeric data (a table, plus a chart when there is a trend or comparison). Keep plain Markdown for explanations, how-tos, code, and short or conversational answers.
+render_ui directly renders the supplied data inside this conversation. It does not require creating workspace files, inspecting the DSH application sources, or implementing a web page. When the user has supplied complete data for a view, call it directly.
 When you call it: first write a short plain-Markdown answer (1-3 sentences stating the conclusion) so the reply stays readable without the view, then call render_ui once with the structured data. Make the first item a markdown component restating that conclusion in one short sentence (at most two lines): your text before the call is folded once the turn ends, so the view must carry it. Put the data only in the tool arguments, not again in your text. A successful call ends your turn; if it fails, answer in plain Markdown instead.
 Rules: text is plain Markdown without HTML, images, or scripts. Every table/chart row has exactly one cell per header. Chart series columns hold plain numbers sharing one unit (e.g. "1,200", "12.5%", or "—" for missing). A line chart needs an increasing time/sequence category column (2025-01, Q1, 1月, years); otherwise use bar. Unless the user asks for an image file, draw charts with render_ui rather than plotting them to images.
 For 2-4 options compared on shared aspects, prefer a table with presentation: "comparison": column 0 names each option, and the remaining columns are its aspects. It shows selectable options with source details and the full table on demand. Use ordinary tables for longer lists or when the user needs rows, sorting, or filtering. A short opening conclusion and one chart/table form a responsive explanation-plus-view layout; avoid extra components repeating the same data.
-When the numbers depend on an assumption the reader may want to vary (growth rate, interest rate, plan tier), you may use one scenarios item: 2-4 named options, each holding the same components computed under that option, so the reader can switch between them. Never use it for options that are simply compared side by side.`
+When the numbers depend on an assumption the reader may want to vary (growth rate, interest rate, plan tier), you may use one scenarios item: 2-4 named options, each holding the same components computed under that option, so the reader can switch between them. Never use it for options that are simply compared side by side.
+For combined filters, selected-record explanations, or a step-by-step inspector, prefer ONE explorer component over independent scenarios, repeated cards or duplicated tables. Supply its source rows once. filters are ANDed; optional filters allow All. selection names a record/step column. For alternative execution scenarios, put both scenarios in the same table, use a scenario filter with all:false, selection:<attempt column>, steps:true: switching scenario preserves the selected attempt and updates ALL fields, including explanation and destination. That selection column must be unique within each required-filter combination. For samples, use optional species/sex filters and selection:<original row id>.
+Explorer metrics are computed locally from the filtered rows: count without a column counts rows, count with a column counts numeric non-missing cells, mean excludes missing cells and may groupBy a column. Include units in metric labels. Preserve NA/未公布; never replace them with zero. Put per-record explanations in source cells so they change with the selection. The explorer already provides filters, metrics, selection, complete record details, and a collapsed selectable source table. A linked answer should contain ONE explorer plus short Markdown only: do not add separate tables, cards, charts or scenarios alongside it, because their controls have independent state. For a step timeline, put ordered time values in the explorer rows and use its stepper/source table. Scatterplots, interval timelines and continuous formulas are not supported; if requested, state that limitation once and use this linked table/inspector alternative.`
 
 const ALIGN = ['left', 'center', 'right', 'none'] as const
 const cell = z.union([z.string(), z.number().refine(Number.isFinite)]).transform(String)
 const headers = z.array(z.string().min(1)).min(2).max(LIMITS.tableColumns)
 const rows = z.array(z.array(cell).max(LIMITS.tableColumns)).max(LIMITS.tableRows)
 const markdown = z.string().min(1)
+const column = z.number().int().nonnegative()
+const explorerSchema = z.strictObject({
+  type: z.literal('explorer'),
+  title: z.string().min(1).max(120),
+  headers,
+  rows: rows.min(1),
+  selection: column,
+  filters: z.array(z.strictObject({ column, all: z.boolean().default(true) })).max(2).default([]),
+  metrics: z.array(z.discriminatedUnion('op', [
+    z.strictObject({ op: z.literal('count'), label: z.string().min(1).max(60), column: column.optional() }),
+    z.strictObject({ op: z.literal('mean'), label: z.string().min(1).max(60), column, groupBy: column.optional() }),
+  ])).max(3).default([]),
+  steps: z.boolean().default(false),
+})
 
 const itemSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('markdown'), markdown }),
@@ -65,6 +83,7 @@ export const INLINE_PARAMETERS = {
         + `{"type":"cards","cards":[{"title":string,"markdown":string}, ...2-${LIMITS.cards}]}; `
         + '{"type":"table","headers":[string...],"rows":[[cell...]...],"align"?:["left"|"center"|"right"|"none"...],"presentation"?:"comparison" (2-4 named options in column 0)}; '
         + '{"type":"chart","chart":"bar"|"line","headers":[string...],"rows":[[cell...]...],"x":<category column index>,"series":[<numeric column index>...1-4]}; '
+        + '{"type":"explorer","title":string,"headers":[string...],"rows":[[cell...]...],"selection":<record/step column index>,"filters"?:[{"column":<index>,"all"?:true|false}, ...0-2],"metrics"?:[{"op":"count","label":string,"column"?:<numeric index>}|{"op":"mean","label":string,"column":<numeric index>,"groupBy"?:<index>}, ...0-3],"steps"?:true|false}; '
         + `{"type":"scenarios","label":string,"options":[{"name":string,"items":[1-${LIMITS.scenarioItems} of the components above]}, ...2-${LIMITS.scenarioOptions}]}.`,
       items: { type: 'object' },
     },
@@ -109,7 +128,8 @@ function consistent(width: number, data: readonly (readonly string[])[], what: s
 }
 
 function inferType(item: object): string | undefined {
-  return ['chart', 'markdown', 'cards'].find(key => key in item) ?? ('rows' in item ? 'table' : 'options' in item ? 'scenarios' : undefined)
+  return 'selection' in item ? 'explorer'
+    : ['chart', 'markdown', 'cards'].find(key => key in item) ?? ('rows' in item ? 'table' : 'options' in item ? 'scenarios' : undefined)
 }
 
 // Follow-up turns sometimes drop "type"; an item's own keys already name it, and the strict schema still checks the rest.
@@ -130,6 +150,21 @@ function dropChartedTables<T extends IntelligentUiItem>(items: readonly T[]): T[
  */
 export function resolveInlineItem(value: unknown): InlineItemOutcome {
   const typed = withType(value)
+  if (typeof typed === 'object' && typed !== null && 'type' in typed && typed.type === 'explorer') {
+    const parsed = explorerSchema.safeParse(typed)
+    if (!parsed.success) return { ok: false, detail: `schema: ${parsed.error.issues[0]?.message ?? 'rejected'}` }
+    const { headers, rows, ...config } = parsed.data
+    if ([config.title, ...headers, ...rows.flat(), ...config.metrics.map(metric => metric.label)].some(unsafe)) {
+      return { ok: false, detail: UNSAFE }
+    }
+    try {
+      consistent(headers.length, rows, 'explorer')
+      return { ok: true, item: bindExplorer({ ...config, table: { headers, rows, align: headers.map(() => 'none') } }) }
+    } catch (error: unknown) {
+      if (error instanceof BindingError) return { ok: false, detail: error.message }
+      throw error
+    }
+  }
   if (typeof typed !== 'object' || typed === null || !('type' in typed) || typed.type !== 'scenarios') return resolveBasicItem(typed)
   const parsed = scenariosSchema.safeParse(typed)
   if (!parsed.success) return { ok: false, detail: `schema: ${parsed.error.issues[0]?.message ?? 'rejected'}` }

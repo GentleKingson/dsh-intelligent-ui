@@ -16,8 +16,8 @@ const PTC_TRANSPORT = 'run_code'
 
 const tool: ToolDefinition = {
   name: INLINE_TOOL_NAME,
-  description: 'Show the user an interactive view (Markdown, cards, sortable table, bar/line chart) built from data you supply. '
-    + 'Use for option comparisons, lists of items sharing fields, and numeric data; other answers stay Markdown. Write a short Markdown answer before calling. '
+  description: 'Show the user an interactive view (Markdown, cards, sortable table, bar/line chart, or explorer with linked filters, summaries and record/step selection) built from data you supply. '
+    + 'Renders directly in the conversation; no workspace files or app-source inspection needed. Use for option comparisons, lists of items sharing fields, and numeric data; other answers stay Markdown. Write a short Markdown answer before calling. '
     + 'A successful call ends your turn.',
   parameters: INLINE_PARAMETERS,
   output: {
