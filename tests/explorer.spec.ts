@@ -154,6 +154,15 @@ describe('linked dataset', () => {
     expect(steps.metrics).toEqual([])
   })
 
+  it('drops a mean over a text id or step name before validating the remaining metrics', () => {
+    const ids = resolve({ type: 'explorer', title: '样本', headers: ['ID', '体重(g)'], rows: [['A01', 10], ['A02', 20]], selection: 0,
+      metrics: [{ op: 'mean', label: '平均ID', column: 0 }, { op: 'mean', label: '平均体重', column: 1 }] })
+    expect(ids.metrics.map(metric => metric.label)).toEqual(['平均体重'])
+    const steps = resolve({ type: 'explorer', title: '链路', headers: ['步骤', '耗时(ms)'], rows: [['DNS', 20], ['TCP', 30]], selection: 0,
+      metrics: [{ op: 'mean', label: '平均步骤', column: 0 }] })
+    expect(steps.metrics).toEqual([])
+  })
+
   it.each([
     ['plot index', { type: 'scatter', x: 8, y: 5 }],
     ['same axes', { type: 'scatter', x: 3, y: 3 }],

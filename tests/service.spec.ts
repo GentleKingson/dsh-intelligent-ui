@@ -184,6 +184,20 @@ describe('IntelligentUiService', () => {
     expect(second.calls).toHaveLength(0)
   })
 
+  it('keeps a degraded chart with table-only series across a restart', async () => {
+    const root = tempRoot()
+    const answer = '| 季度 | 营收 | 同比 |\n| --- | ---: | ---: |\n| Q1 | 100 | 10% |\n| Q2 | 120 | 20% |'
+    const program = '{"version":1,"items":[{"type":"chart","table":"t0","chart":"bar","x":"c0","series":["c1","c2"]}]}'
+    const first = await boot(root, [text(program)])
+    const ref = turn(first.ctx, 's9b', 1, { answer })
+    const ready = await settle(first.service, ref)
+    expect(ready.status === 'ready' && ready.view.items[0]).toMatchObject({ series: [{ name: '营收' }], tableOnly: ['同比'] })
+    await first.ctx.fiber.dispose()
+    const second = await boot(root, [text(program)])
+    expect(await second.service.read(ref)).toEqual(ready)
+    expect(second.calls).toHaveLength(0)
+  })
+
   it('a corrupted record only drops that enhancement', async () => {
     const root = tempRoot()
     const first = await boot(root, [text(PROGRAM)])

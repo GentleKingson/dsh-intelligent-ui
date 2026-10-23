@@ -37,7 +37,9 @@ export function bindExplorer(item: IntelligentUiExplorerItem): IntelligentUiExpl
   if (new Set(keys).size !== keys.length || rows.some(row => parseCell(row[item.selection] ?? '').kind === 'missing')) {
     throw new BindingError('explorer selection must be present and unique within required filters')
   }
-  for (const metric of item.metrics) {
+  // Drop meaningless means first, so a mean over a text id or step name never rejects the explorer.
+  const metrics = item.metrics.filter(metric => metric.op !== 'mean' || meaningfulMean(item, metric.column, metric.label))
+  for (const metric of metrics) {
     if (metric.column === undefined) continue
     const values = rows.map(row => parseCell(row[metric.column ?? 0] ?? ''))
     const units = new Set(values.flatMap(cell => cell.kind === 'number' ? [cell.unit] : []))
@@ -45,7 +47,6 @@ export function bindExplorer(item: IntelligentUiExplorerItem): IntelligentUiExpl
       throw new BindingError('explorer metrics need same-unit numeric cells or missing values')
     }
   }
-  const metrics = item.metrics.filter(metric => metric.op !== 'mean' || meaningfulMean(item, metric.column, metric.label))
   if (plot !== undefined) {
     for (const column of plot.type === 'scatter' ? [plot.x, plot.y] : [plot.x]) {
       const cells = rows.map(row => parseCell(row[column] ?? ''))
