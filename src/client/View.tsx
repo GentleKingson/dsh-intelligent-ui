@@ -24,6 +24,12 @@ export class ViewBoundary extends Component<{ children: ReactNode }, { failed: b
   override render(): ReactNode { return this.state.failed ? null : this.props.children }
 }
 
+/** Cell kind for styling, plus a sign so losses and other negatives stand out wherever a value is shown. */
+function cellData(text: string): { 'data-kind': string; 'data-sign'?: 'negative' } {
+  const cell = parseCell(text)
+  return cell.kind === 'number' && cell.value < 0 ? { 'data-kind': cell.kind, 'data-sign': 'negative' } : { 'data-kind': cell.kind }
+}
+
 function Markdown({ text, t }: { text: string; t: T }) {
   const labels = useMemo(() => ({
     code: { copyLabel: t('markdown.copy'), copiedLabel: t('markdown.copied') },
@@ -191,13 +197,14 @@ function Explorer({ item, t }: { item: IntelligentUiExplorerItem; t: T }) {
           <dl className="diu-aspects" aria-live="polite" aria-atomic="true">
             {item.table.headers.map((header, column) => (
               <div key={column} className={(selected[column]?.length ?? 0) > 100 ? 'diu-wide' : undefined}>
-                <dt>{header}</dt><dd data-kind={parseCell(selected[column] ?? '').kind}>{selected[column]}</dd>
+                <dt>{header}</dt><dd {...cellData(selected[column] ?? '')}>{selected[column]}</dd>
               </div>
             ))}
           </dl>
         )}
       </section>
-      <details className="diu-details">
+      {/* Without a plot the rows are the main content (e.g. a list to browse), so they start visible. */}
+      <details className="diu-details" open={item.plot === undefined}>
         <summary>{t('explorer.source', { shown: rows.length, total: item.table.rows.length })}</summary>
         {/* The explorer's search and filters already chose these rows; a second keyword box would diverge from them. */}
         <TableView table={visibleTable} t={t} onSelect={selectRow} selectedRow={selected} selectColumn={item.selection} searchable={false} />
@@ -439,9 +446,8 @@ export function TableView({ table, t, onSelect, selectedRow, selectColumn = 0, s
                 <tr key={index}>
                   {table.headers.map((_, column) => {
                     const text = row[column] ?? ''
-                    const kind = parseCell(text).kind
                     return <td key={column} className={text.length <= NOWRAP_CHARS ? 'diu-nowrap' : 'diu-wrap'}
-                      data-kind={kind} style={{ textAlign: alignments[column] }}>
+                      {...cellData(text)} style={{ textAlign: alignments[column] }}>
                       {onSelect !== undefined && column === selectColumn
                         ? <button type="button" className="diu-link" aria-pressed={row === selectedRow} onClick={() => { onSelect(row) }}>{text}</button>
                         : text}
@@ -583,7 +589,7 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
               return (
                 <g key={seriesIndex} className={`diu-s${seriesIndex} diu-bars`}>
                   {series.values.map((value, index) => value === null ? null : (
-                    <rect key={index} x={center(index) - band * 0.36 + position * width} width={Math.max(1, width - 1)}
+                    <rect key={index} className={value < 0 ? 'diu-neg' : undefined} x={center(index) - band * 0.36 + position * width} width={Math.max(1, width - 1)}
                       y={Math.min(y(value), y(0))} height={Math.max(1, Math.abs(y(value) - y(0)))}
                       opacity={active === null || active === index ? 1 : 0.55} />
                   ))}
@@ -646,7 +652,7 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
           </div>
           <dl id={`${dataId}-selection`} className="diu-aspects" aria-live="polite" aria-atomic="true">
             {item.table.headers.map((header, column) => (
-              <div key={column}><dt>{header}</dt><dd data-kind={parseCell(selectedRow[column] ?? '').kind}>{selectedRow[column]}</dd></div>
+              <div key={column}><dt>{header}</dt><dd {...cellData(selectedRow[column] ?? '')}>{selectedRow[column]}</dd></div>
             ))}
           </dl>
         </div>
