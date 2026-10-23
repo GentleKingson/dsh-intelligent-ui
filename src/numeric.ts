@@ -117,7 +117,8 @@ export function analyzeColumn(cells: readonly string[]): ColumnAnalysis {
   const categorical = cells.length > 0 && parsed.every(cell => cell.kind !== 'missing')
   const numbers = parsed.filter((cell): cell is Extract<CellValue, { kind: 'number' }> => cell.kind === 'number')
   const units = new Set(numbers.map(cell => cell.unit))
-  const plottable = numbers.length >= 2 && units.size === 1 && parsed.every(cell => cell.kind !== 'text')
+  // One number among missing cells is still a series (e.g. a new year with only Q1); the chart itself needs two rows.
+  const plottable = numbers.length >= 1 && units.size === 1 && parsed.every(cell => cell.kind !== 'text')
   return {
     numeric: plottable
       ? { unit: numbers[0]?.unit ?? '|', values: parsed.map(cell => cell.kind === 'number' ? cell.value : null) }

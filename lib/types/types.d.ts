@@ -64,6 +64,8 @@ export interface IntelligentUiChartItem {
     readonly unit: string;
     readonly categories: readonly string[];
     readonly series: readonly IntelligentUiSeries[];
+    /** Requested series headers that could not share the axis; they appear only in the data table. */
+    readonly tableOnly?: readonly string[] | undefined;
     /** The source table the chart was drawn from, for the "view data" disclosure. */
     readonly table: IntelligentUiTableData;
 }

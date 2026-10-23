@@ -136,6 +136,33 @@ describe('linked dataset', () => {
     expect(plot?.xAxis.min).toBe(0)
   })
 
+  it('ANDs the keyword search with filters, so counts, records and the source table agree (T3)', () => {
+    const item = resolve(PENGUINS)
+    const searched = explore(item, ['Gentoo', null], '154', 0, 'fem')
+    expect(searched.rows.map(row => row[0])).toEqual(['153', '155'])
+    expect(searched.metrics[0]?.value).toBe(2)
+    expect(searched.selected?.[0]).toBe('153')
+    expect(explore(item, explorerDefaults(item), '154', 0, 'nothing').selected).toBeUndefined()
+  })
+
+  it('drops means over years, ids and illustrative values but keeps measured means (T3, T6)', () => {
+    const item = resolve({ ...PENGUINS, metrics: [{ op: 'count', label: '样本数' }, { op: 'mean', label: '平均年份', column: 7 },
+      { op: 'mean', label: '平均体重（g）', column: 5 }] })
+    expect(item.metrics.map(metric => metric.label)).toEqual(['样本数', '平均体重（g）'])
+    const steps = resolve({ type: 'explorer', title: '请求链路', headers: ['步骤', '参与方', '典型耗时 (ms，示意)'],
+      rows: [['DNS', '解析器', 20], ['TCP', '服务器', 30]], selection: 0, metrics: [{ op: 'mean', label: '平均单步耗时 (ms)', column: 2 }] })
+    expect(steps.metrics).toEqual([])
+  })
+
+  it('drops a mean over a text id or step name before validating the remaining metrics', () => {
+    const ids = resolve({ type: 'explorer', title: '样本', headers: ['ID', '体重(g)'], rows: [['A01', 10], ['A02', 20]], selection: 0,
+      metrics: [{ op: 'mean', label: '平均ID', column: 0 }, { op: 'mean', label: '平均体重', column: 1 }] })
+    expect(ids.metrics.map(metric => metric.label)).toEqual(['平均体重'])
+    const steps = resolve({ type: 'explorer', title: '链路', headers: ['步骤', '耗时(ms)'], rows: [['DNS', 20], ['TCP', 30]], selection: 0,
+      metrics: [{ op: 'mean', label: '平均步骤', column: 0 }] })
+    expect(steps.metrics).toEqual([])
+  })
+
   it.each([
     ['plot index', { type: 'scatter', x: 8, y: 5 }],
     ['same axes', { type: 'scatter', x: 3, y: 3 }],

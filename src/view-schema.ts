@@ -28,6 +28,8 @@ export const viewSchema = z.strictObject({
         name: z.string(),
         values: z.array(z.number().nullable()).max(LIMITS.tableRows),
       })).max(LIMITS.chartSeries),
+      // At least one requested series is plotted, so at most chartSeries - 1 stay table-only.
+      tableOnly: z.array(z.string()).min(1).max(LIMITS.chartSeries - 1).optional(),
       table,
     }),
   ])).max(LIMITS.items),

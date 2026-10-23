@@ -37,6 +37,7 @@ export declare const viewSchema: z.ZodObject<{
             name: z.ZodString;
             values: z.ZodArray<z.ZodNullable<z.ZodNumber>>;
         }, z.core.$strict>>;
+        tableOnly: z.ZodOptional<z.ZodArray<z.ZodString>>;
         table: z.ZodObject<{
             headers: z.ZodArray<z.ZodString>;
             align: z.ZodArray<z.ZodEnum<{

@@ -4,7 +4,22 @@ import { parseCell, displayUnit, valueAxis } from './numeric.ts'
 import { BindingError } from './program.ts'
 import { LIMITS } from './limits.ts'
 
-/** Reject ambiguous record identities and summaries that would change units or fill missing cells. */
+/** Headers whose values are labels or placeholders, so their average answers nothing. */
+const NOT_MEASURED = /年份|\byear\b|示意|示例|illustrative|\bexample\b|编号|序号|\bid\b/i
+
+/**
+ * A mean is shown only for a measured quantity: never over the record/step
+ * column, years, ids, or illustrative values, judged by header and label.
+ * ponytail: header keywords only; values alone cannot tell 2007 (a year) from 2007 (万元).
+ */
+function meaningfulMean(item: IntelligentUiExplorerItem, column: number, label: string): boolean {
+  return column !== item.selection && !NOT_MEASURED.test(item.table.headers[column] ?? '') && !NOT_MEASURED.test(label)
+}
+
+/**
+ * Reject ambiguous record identities and summaries that would change units or
+ * fill missing cells; drop means that would average labels rather than measures.
+ */
 export function bindExplorer(item: IntelligentUiExplorerItem): IntelligentUiExplorerItem {
   const { headers, rows } = item.table
   const plot = item.plot
@@ -22,7 +37,9 @@ export function bindExplorer(item: IntelligentUiExplorerItem): IntelligentUiExpl
   if (new Set(keys).size !== keys.length || rows.some(row => parseCell(row[item.selection] ?? '').kind === 'missing')) {
     throw new BindingError('explorer selection must be present and unique within required filters')
   }
-  for (const metric of item.metrics) {
+  // Drop meaningless means first, so a mean over a text id or step name never rejects the explorer.
+  const metrics = item.metrics.filter(metric => metric.op !== 'mean' || meaningfulMean(item, metric.column, metric.label))
+  for (const metric of metrics) {
     if (metric.column === undefined) continue
     const values = rows.map(row => parseCell(row[metric.column ?? 0] ?? ''))
     const units = new Set(values.flatMap(cell => cell.kind === 'number' ? [cell.unit] : []))
@@ -54,7 +71,7 @@ export function bindExplorer(item: IntelligentUiExplorerItem): IntelligentUiExpl
       }
     }
   }
-  return item
+  return metrics.length === item.metrics.length ? item : { ...item, metrics }
 }
 
 /** Preserve source rows and stable group/axis domains while filtering out only missing coordinates. */
@@ -83,10 +100,15 @@ export function explorerDefaults(item: IntelligentUiExplorerItem): readonly (str
   return item.filters.map(filter => filter.all ? null : item.table.rows[0]?.[filter.column] ?? '')
 }
 
-/** Every visible value and the inspector are derived from the same filtered source rows. */
-export function explore(item: IntelligentUiExplorerItem, filters: readonly (string | null)[], selectedKey: string, fallbackIndex = 0) {
+/**
+ * Every visible value and the inspector are derived from the same filtered source rows.
+ * `query` is the explorer's one keyword search, ANDed with the filters over every cell.
+ */
+export function explore(item: IntelligentUiExplorerItem, filters: readonly (string | null)[], selectedKey: string, fallbackIndex = 0, query = '') {
+  const needle = query.trim().toLowerCase()
   const rows = item.table.rows.filter(row => item.filters.every((filter, index) =>
-    filters[index] == null || row[filter.column] === filters[index]))
+    filters[index] == null || row[filter.column] === filters[index])
+    && (needle === '' || row.some(cell => cell.toLowerCase().includes(needle))))
   const selected = rows.find(row => row[item.selection] === selectedKey)
     ?? rows[Math.max(0, Math.min(fallbackIndex, rows.length - 1))]
   const metrics = item.metrics.flatMap(metric => {
