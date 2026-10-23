@@ -25,9 +25,16 @@ body[data-ds-dark-theme] .diu-root{--diu-s0:#7aa2f7;--diu-s1:#f0a35e;--diu-s2:#5
 .diu-clamped{max-height:12em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 60%,transparent)}
 .diu-card .diu-link{align-self:flex-start}
 .diu-comparison{display:flex;flex-direction:column;gap:16px;min-width:0}
+.diu-comparison .diu-segments button{max-width:100%;overflow-wrap:anywhere;text-align:left}
 .diu-aspects{margin:0;display:grid;gap:12px;overflow-wrap:anywhere}
 .diu-aspects dt{font-size:12px;color:var(--dsw-alias-label-secondary,#666);margin-bottom:3px}
 .diu-aspects dd{margin:0}
+.diu-selection .diu-aspects{grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:16px}
+.diu-selection dd[data-kind=number]{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.diu-selection dd[data-kind=missing]{color:var(--dsw-alias-label-secondary,#666)}
+.diu-selection-control{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12px}
+.diu-selection select{font:inherit;color:inherit;background:var(--dsw-alias-bg-l1,Canvas);border:1px solid var(--diu-border);border-radius:6px;padding:7px 10px;max-width:100%;min-width:0}
+.diu-selection select:focus-visible{outline:2px solid var(--dsw-focus-ring-color,#3b6fd8);outline-offset:1px}
 .diu-details{min-width:0}
 .diu-details summary{cursor:pointer;color:var(--dsw-alias-state-business-primary,#3b6fd8);font-size:12px;padding:6px 0}
 .diu-details summary:focus-visible{outline:2px solid var(--dsw-focus-ring-color,#3b6fd8);outline-offset:2px}
@@ -41,6 +48,7 @@ body[data-ds-dark-theme] .diu-root{--diu-s0:#7aa2f7;--diu-s1:#f0a35e;--diu-s2:#5
 .diu-segments .diu-muted{margin-right:4px}
 .diu-root .diu-segments button{border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.35));border-radius:999px;padding:2px 10px}
 .diu-root .diu-segments button[aria-pressed=true]{background:var(--dsw-alias-state-business-primary,#3b6fd8);border-color:transparent;color:#fff}
+.diu-root .diu-comparison .diu-segments button[aria-pressed=true]{color:inherit;background:color-mix(in srgb,var(--dsw-alias-state-business-primary,#3b6fd8) 14%,transparent);border-color:var(--dsw-alias-state-business-primary,#3b6fd8)}
 .diu-scenario{display:flex;flex-direction:column;gap:12px}
 .diu-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:12px}
 .diu-controls input{box-sizing:border-box;font:inherit;color:inherit;background:var(--diu-surface);border:1px solid var(--diu-border);border-radius:8px;padding:7px 10px;min-width:0;max-width:100%;flex:0 1 220px}
