@@ -154,6 +154,9 @@ export function bindTable(data: IntelligentUiTableData, presentation?: 'comparis
   return { type: 'table', table: data, presentation }
 }
 
+/** Slice limit of a pie chart; one color each. */
+export const PIE_SLICES = 8
+
 /**
  * Bind a chart to verified table columns; every plotted value is parsed from
  * the table's own cell text, so the chart and its "view data" table agree.
@@ -166,13 +169,13 @@ export function bindTable(data: IntelligentUiTableData, presentation?: 'comparis
  */
 export function bindChart(
   source: Pick<SourceTable, 'data' | 'columns'>,
-  item: { readonly chart: 'bar' | 'line'; readonly x: string; readonly series: readonly string[] },
+  item: { readonly chart: IntelligentUiChartItem['chart']; readonly x: string; readonly series: readonly string[] },
 ): IntelligentUiChartItem {
   distinct([item.x, ...item.series], 'chart column')
   const x = source.columns.find(column => column.id === item.x)
   if (x === undefined || !x.analysis.categorical) throw new BindingError(`column ${item.x} is not a category axis`)
   // A line implies a trend; unordered categories may only be compared as bars.
-  if (item.chart === 'line' && !x.analysis.ordered) throw new BindingError(`column ${item.x} is not an ordered time/sequence axis`)
+  if ((item.chart === 'line' || item.chart === 'area') && !x.analysis.ordered) throw new BindingError(`column ${item.x} is not an ordered time/sequence axis`)
   const columns = item.series.map((id) => {
     const column = source.columns.find(candidate => candidate.id === id)
     if (column === undefined) throw new BindingError(`unknown chart column ${id}`)
@@ -183,6 +186,14 @@ export function bindChart(
   const plotted = columns.filter(column => column.analysis.numeric?.unit === unit)
   if (source.data.rows.length < 2) throw new BindingError('chart needs at least two points')
   const tableOnly = columns.filter(column => !plotted.includes(column)).map(column => column.header)
+  if (item.chart === 'pie') {
+    // Slices are parts of one whole: one series, 2-8 categories, nothing negative.
+    const values = plotted[0]?.analysis.numeric?.values ?? []
+    if (item.series.length !== 1) throw new BindingError('a pie chart takes exactly one series')
+    if (values.length > PIE_SLICES) throw new BindingError(`a pie chart takes at most ${PIE_SLICES} categories; use bar`)
+    if (values.some(value => value !== null && value < 0)) throw new BindingError('a pie chart cannot show negative values; use bar')
+    if (values.filter(value => value !== null && value > 0).length < 2) throw new BindingError('a pie chart needs at least two positive values')
+  }
   return {
     type: 'chart',
     chart: item.chart,

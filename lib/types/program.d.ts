@@ -57,6 +57,8 @@ export declare class BindingError extends Error {
 }
 /** Bind a table without rewriting cells; comparison cards need 2–4 distinct option names in column 0. */
 export declare function bindTable(data: IntelligentUiTableData, presentation?: 'comparison'): IntelligentUiTableItem;
+/** Slice limit of a pie chart; one color each. */
+export declare const PIE_SLICES = 8;
 /**
  * Bind a chart to verified table columns; every plotted value is parsed from
  * the table's own cell text, so the chart and its "view data" table agree.
@@ -68,7 +70,7 @@ export declare function bindTable(data: IntelligentUiTableData, presentation?: '
  * @throws {@link BindingError} when the axis is unusable or no series can be plotted.
  */
 export declare function bindChart(source: Pick<SourceTable, 'data' | 'columns'>, item: {
-    readonly chart: 'bar' | 'line';
+    readonly chart: IntelligentUiChartItem['chart'];
     readonly x: string;
     readonly series: readonly string[];
 }): IntelligentUiChartItem;

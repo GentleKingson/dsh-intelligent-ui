@@ -18,16 +18,17 @@ export const INLINE_TOOL_NAME = 'render_ui'
 
 /** Agent-level guidance registered beside the tool for root agents only. */
 export const INLINE_PROMPT = `# Interactive view (render_ui)
-Call render_ui whenever the main content of your answer is one of: 2+ options, tools, or approaches compared on the same aspects (cards, or a table of option x aspect); a list of 4+ items that share the same fields (a table, e.g. codes with meaning and usage); numeric data (a table, plus a chart when there is a trend or comparison); or a calculation the reader wants to adjust (a calculator). Keep plain Markdown for explanations, how-tos, code, and short or conversational answers.
+Call render_ui whenever the main content of your answer is one of: 2+ options, tools, or approaches compared on the same aspects (cards, or a table of option x aspect); a list of 4+ items that share the same fields (a table, e.g. codes with meaning and usage); numeric data (a table, plus a chart when there is a trend or comparison); a calculation the reader wants to adjust (a calculator); 2+ alternative code snippets for the same task (code tabs); or a list of things the reader will do or buy (a checklist). Keep plain Markdown for explanations, how-tos, a single snippet, and short or conversational answers.
 render_ui directly renders the supplied data inside this conversation; the call is the whole implementation. Build the view only from data in the request and your own knowledge. To prepare or check a view, never install packages, run benchmarks or measurement scripts, generate sample data files, inspect the DSH application, its bundles, or this plugin's sources and README, write HTML/JS files, or take screenshots: none of it is needed, and it costs the user minutes. If a figure is not given, state it qualitatively or as an estimate instead of measuring it. When the user has supplied complete data for a view, call it directly.
-Supported: markdown, cards, sortable/filterable tables, comparison tables, bar/line charts, precomputed scenarios, one explorer (filters, keyword search, count/mean summaries, record details, scatterplot or retry timeline), and calculators (sliders/number boxes/option buttons whose results recompute live from arithmetic formulas). Not supported: code editors or runnable code, images, uploads, drag/zoom, animation. For code, use fenced code blocks inside markdown or card items, e.g. one card per option. When a request needs something unsupported, use the closest supported component and state the limitation in one sentence; never build it yourself.
+Supported: markdown, cards, sortable/filterable tables, comparison tables, bar/line/area/pie charts, code tabs, checklists, precomputed scenarios, one explorer (filters, keyword search, count/mean summaries, record details, scatterplot or retry timeline), and calculators (sliders/number boxes/option buttons whose results recompute live from arithmetic formulas). Not supported: code editors or runnable code, images, uploads, drag/zoom, animation. For 2-6 versions of the same code (languages, libraries, approaches), use ONE code item with one tab per version (label names it, language is the fence tag, code is the raw source without fences) instead of cards; a single snippet stays a fenced block in markdown. Write code tabs from your own knowledge without creating files, installing libraries or running the snippets to check them, and do not claim measured output. When a request needs something unsupported, use the closest supported component and state the limitation in one sentence; never build it yourself.
 When you call it: first write a short plain-Markdown answer (1-3 sentences stating the conclusion) so the reply stays readable without the view, then call render_ui once with the structured data. Make the first item a markdown component restating that conclusion in one short sentence (at most two lines): your text before the call is folded once the turn ends, so the view must carry it. Put the data only in the tool arguments, not again in your text. A successful call ends your turn; if it fails, answer in plain Markdown instead.
-Rules: text is plain Markdown without HTML, images, or scripts. Table, chart and explorer cells are plain text: no Markdown emphasis such as **bold**; to mark changed or new values, add a note column (e.g. 备注: 已修订 2000→2100). Every table/chart row has exactly one cell per header. Chart series columns hold plain numbers sharing one unit (e.g. "1,200", "12.5%", or "—" for missing); a partial period such as a year with only Q1 is a series with "—" for the rest, and a series that cannot share the axis is shown only in the data table. A line chart needs an increasing time/sequence category column (2025-01, Q1, 1月, years); otherwise use bar. Unless the user asks for an image file, draw charts with render_ui rather than plotting them to images.
+Rules: text is plain Markdown without HTML, images, or scripts. Table, chart and explorer cells are plain text: no Markdown emphasis such as **bold**; to mark changed or new values, add a note column (e.g. 备注: 已修订 2000→2100). Every table/chart row has exactly one cell per header. Chart series columns hold plain numbers sharing one unit (e.g. "1,200", "12.5%", or "—" for missing); a partial period such as a year with only Q1 is a series with "—" for the rest, and a series that cannot share the axis is shown only in the data table. A line or area chart needs an increasing time/sequence category column (2025-01, Q1, 1月, years); otherwise use bar. Use area for one or two cumulative totals over time. Use pie only for shares of one whole: exactly one series of 2-8 nonnegative parts (e.g. market share, budget split), never for trends or unrelated quantities; otherwise use bar. Unless the user asks for an image file, draw charts with render_ui rather than plotting them to images.
 For 2-4 options compared on shared aspects, prefer a table with presentation: "comparison": column 0 names each option, and the remaining columns are its aspects. It shows selectable options with source details and the full table on demand. Use ordinary tables for longer lists or when the user needs rows, sorting, or filtering. A short opening conclusion and one chart/table form a responsive explanation-plus-view layout; avoid extra components repeating the same data.
 When the numbers depend on an assumption the reader may want to vary (growth rate, interest rate, plan tier), you may use one scenarios item: 2-4 named options, each holding the same components computed under that option, so the reader can switch between them. Never use it for options that are simply compared side by side.
 For combined filters, selected-record explanations, or a step-by-step inspector, prefer ONE explorer component over independent scenarios, repeated cards or duplicated tables. Supply its source rows once. filters are ANDed; optional filters allow All. selection names a record/step column. For alternative execution scenarios, put both scenarios in the same table, use a scenario filter with all:false, selection:<attempt column>, steps:true: switching scenario preserves the selected attempt and updates ALL fields, including explanation and destination. That selection column must be unique within each required-filter combination. For samples, use optional species/sex filters and selection:<original row id>.
 Explorer metrics are computed locally from the filtered rows: count without a column counts rows, count with a column counts numeric non-missing cells, mean excludes missing cells and may groupBy a column. Use mean only for measured quantities a reader would average; never for years, ids, step numbers or illustrative values (such means are dropped). Include units in metric labels. Preserve NA/未公布; never replace them with zero. Put per-record explanations in source cells so they change with the selection. The explorer already provides a keyword search, filters, metrics, selection, complete record details, and a selectable source table (open by default when the explorer has no plot, collapsed otherwise), all sharing one state. A linked answer should contain ONE explorer plus short Markdown only: do not add separate tables, cards, charts or scenarios alongside it, because their controls have independent state. When a scatterplot is requested, add plot:{type:"scatter",x:<numeric column>,y:<different numeric column>,groupBy:<optional category column>} to this SAME explorer. Each axis may have its own unit; never treat x and y as same-unit chart series. Points with either coordinate missing are omitted, never zero-filled; source rows remain selectable. Plot counts report rows with both coordinates. For retry timelines, use plot:{type:"timeline",x:<numeric attempt time column>,groupBy:<optional scenario column>}, steps:true and a required scenario filter. Times must be nonnegative and strictly increasing within each scenario/group. The timeline uses proportional time positions and labels consecutive intervals; use zero-duration task attempts only when the input says so. For retry inspectors, use a row count metric only unless other summaries are explicitly requested; do not average cumulative waiting or retry budgets. Time is the start of the selected attempt. A wait-to-next column describes a future interval after its failure, not elapsed time already spent. With zero-duration tasks, cumulative elapsed waiting equals the attempt start time; never add its future wait to elapsed waiting. Name budget fields explicitly as before or after the current retry decision, and state terminal no-further-wait as 0 or not applicable. Grouping supports up to four categories, with stable colors and shapes. Plot marks, filters, record dropdown, source-table selection and stepper all share selection; do not emit a standalone chart for these cases. Drag/zoom, animation and general Gantt schedules are not supported.
-For a calculator or any result the reader should recompute from numbers they adjust (loan payment, compound growth, pricing, break-even, unit conversion), use ONE calculator item instead of precomputed grids or scenarios. It stands alone, never inside scenarios. inputs: {id, label, unit?, value (default), min, max, step?} for a continuous value (value must be min plus a whole number of steps) (slider plus number box), or {id, label, unit?, value, options:[numbers]} for 2-8 discrete choices. outputs: {id?, label, unit?, formula, decimals?} in display order; a formula reads input ids and the ids of earlier outputs. Formula syntax: numbers, + - * / %, ^ for power, parentheses, comparisons and c ? a : b, and min max abs round floor ceil sqrt pow exp ln log10. Write rates as the reader sees them (e.g. rate 3.5 for 3.5%) and convert in the formula (rate / 100 / 12). Add intermediate outputs with an id and hidden: true for reused terms (e.g. monthly rate, number of periods), so only the results the reader asked for are shown, and keep every output finite at the defaults and across the input ranges. State the default result in the markdown conclusion; it must equal the calculator's output at the defaults. When the reader should see how a result develops (balance per year, payment schedule, growth curve), add series to the SAME calculator: x names an index variable that runs from the formula from to the formula to by step (e.g. x:"y", from:"0", to:"years"), label is its column header, and each column formula reads inputs, output ids and x; chart:"line" (or "bar") draws the columns that share the first column's unit, and the full rows stay under the chart's data toggle. At most 200 rows; never add a separate table or chart for these rows.`
+For a calculator or any result the reader should recompute from numbers they adjust (loan payment, compound growth, pricing, break-even, unit conversion), use ONE calculator item instead of precomputed grids or scenarios. It stands alone, never inside scenarios. inputs: {id, label, unit?, value (default), min, max, step?} for a continuous value (value must be min plus a whole number of steps) (slider plus number box), or {id, label, unit?, value, options:[numbers]} for 2-8 discrete choices. outputs: {id?, label, unit?, formula, decimals?} in display order; a formula reads input ids and the ids of earlier outputs. Formula syntax: numbers, + - * / %, ^ for power, parentheses, comparisons and c ? a : b, and min max abs round floor ceil sqrt pow exp ln log10. Write rates as the reader sees them (e.g. rate 3.5 for 3.5%) and convert in the formula (rate / 100 / 12). Add intermediate outputs with an id and hidden: true for reused terms (e.g. monthly rate, number of periods), so only the results the reader asked for are shown, and keep every output finite at the defaults and across the input ranges. State the default result in the markdown conclusion; it must equal the calculator's output at the defaults. When the reader should see how a result develops (balance per year, payment schedule, growth curve), add series to the SAME calculator: x names an index variable that runs from the formula from to the formula to by step (e.g. x:"y", from:"0", to:"years"), label is its column header, and each column formula reads inputs, output ids and x; chart:"line" (or "bar") draws the columns that share the first column's unit, and the full rows stay under the chart's data toggle. At most 200 rows; never add a separate table or chart for these rows.
+For steps, packing, shopping or to-do lists the reader will tick off, use ONE checklist item: title, items of {text, checked?, group?} in order (group heads sections such as 蔬菜 or 肉类), and editable: true when the reader would add or remove their own items. Text is plain, without Markdown; ticks and edits stay local and are not sent back to you.`
 
 const ALIGN = ['left', 'center', 'right', 'none'] as const
 // Cells render as plain text; a model marking a change as **2100** would show the asterisks and lose the number.
@@ -97,6 +98,26 @@ const calculatorSchema = z.strictObject({
   }).optional(),
 })
 
+const codeSchema = z.strictObject({
+  type: z.literal('code'),
+  tabs: z.array(z.strictObject({
+    label: z.string().min(1).max(40),
+    language: z.string().regex(/^[\w+#.-]{0,20}$/, 'language is a fence tag such as python or c++').default(''),
+    code: z.string().min(1).max(6000),
+  })).min(2).max(6),
+})
+
+const checklistSchema = z.strictObject({
+  type: z.literal('checklist'),
+  title: z.string().min(1).max(120),
+  items: z.array(z.strictObject({
+    text: z.string().min(1).max(200),
+    checked: z.boolean().default(false),
+    group: z.string().min(1).max(40).optional(),
+  })).min(1).max(60),
+  editable: z.boolean().default(false),
+})
+
 const itemSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('markdown'), markdown }),
   z.strictObject({
@@ -112,7 +133,7 @@ const itemSchema = z.discriminatedUnion('type', [
   }),
   z.strictObject({
     type: z.literal('chart'),
-    chart: z.enum(['bar', 'line']),
+    chart: z.enum(['bar', 'line', 'area', 'pie']),
     headers,
     rows: rows.min(2),
     // Follow-up turns sometimes omit it; real outputs always put the categories in column 0.
@@ -133,8 +154,10 @@ export const INLINE_PARAMETERS = {
         + '{"type":"markdown","markdown":string}; '
         + `{"type":"cards","cards":[{"title":string,"markdown":string}, ...2-${LIMITS.cards}]}; `
         + '{"type":"table","headers":[string...],"rows":[[cell...]...],"align"?:["left"|"center"|"right"|"none"...],"presentation"?:"comparison" (2-4 named options in column 0)}; '
-        + '{"type":"chart","chart":"bar"|"line","headers":[string...],"rows":[[cell...]...],"x":<category column index>,"series":[<numeric column index>...1-4]}; '
+        + '{"type":"chart","chart":"bar"|"line"|"area"|"pie","headers":[string...],"rows":[[cell...]...],"x":<category column index>,"series":[<numeric column index>...1-4]}; '
         + '{"type":"calculator","title":string,"inputs":[{"id":string,"label":string,"unit"?:string,"value":number,"min":number,"max":number,"step"?:number}|{"id":string,"label":string,"unit"?:string,"value":number,"options":[number...2-8]}, ...1-6],"outputs":[{"id"?:string,"label":string,"unit"?:string,"formula":string,"decimals"?:0-6,"hidden"?:true}, ...1-8],"series"?:{"x":string,"label":string,"from":string,"to":string,"step"?:number,"chart"?:"line"|"bar","columns":[{"label":string,"unit"?:string,"formula":string,"decimals"?:0-6}, ...1-4]}}; '
+        + '{"type":"code","tabs":[{"label":string,"language"?:string,"code":string}, ...2-6]}; '
+        + '{"type":"checklist","title":string,"items":[{"text":string,"checked"?:boolean,"group"?:string}, ...1-60],"editable"?:boolean}; '
         + '{"type":"explorer","title":string,"headers":[string...],"rows":[[cell...]...],"selection":<record/step column index>,"filters"?:[{"column":<index>,"all"?:true|false}, ...0-2],"metrics"?:[{"op":"count","label":string,"column"?:<numeric index>}|{"op":"mean","label":string,"column":<numeric index>,"groupBy"?:<index>}, ...0-3],"steps"?:true|false,"plot"?:{"type":"scatter","x":<numeric index>,"y":<different numeric index>,"groupBy"?:<index>}|{"type":"timeline","x":<nonnegative increasing attempt time index>,"groupBy"?:<index>}}; '
         + `{"type":"scenarios","label":string,"options":[{"name":string,"items":[1-${LIMITS.scenarioItems} of the components above]}, ...2-${LIMITS.scenarioOptions}]}.`,
       items: { type: 'object' },
@@ -180,7 +203,7 @@ function consistent(width: number, data: readonly (readonly string[])[], what: s
 }
 
 function inferType(item: object): string | undefined {
-  return 'selection' in item ? 'explorer' : 'outputs' in item ? 'calculator'
+  return 'selection' in item ? 'explorer' : 'outputs' in item ? 'calculator' : 'tabs' in item ? 'code'
     : ['chart', 'markdown', 'cards'].find(key => key in item) ?? ('rows' in item ? 'table' : 'options' in item ? 'scenarios' : undefined)
 }
 
@@ -218,6 +241,22 @@ export function resolveInlineItem(value: unknown): InlineItemOutcome {
       throw error
     }
   }
+  if (typeof typed === 'object' && typed !== null && 'type' in typed && typed.type === 'code') {
+    const parsed = codeSchema.safeParse(typed)
+    if (!parsed.success) return { ok: false, detail: `schema: ${parsed.error.issues[0]?.message ?? 'rejected'}` }
+    const labels = parsed.data.tabs.map(tab => tab.label)
+    if (labels.some(unsafe)) return { ok: false, detail: UNSAFE }
+    if (new Set(labels).size !== labels.length) return { ok: false, detail: 'code tab labels must differ' }
+    // Code is shown only as a literal block, so it needs no markup check.
+    return { ok: true, item: parsed.data }
+  }
+  if (typeof typed === 'object' && typed !== null && 'type' in typed && typed.type === 'checklist') {
+    const parsed = checklistSchema.safeParse(typed)
+    if (!parsed.success) return { ok: false, detail: `schema: ${parsed.error.issues[0]?.message ?? 'rejected'}` }
+    const { title, items, editable } = parsed.data
+    if ([title, ...items.flatMap(entry => [entry.text, entry.group ?? ''])].some(unsafe)) return { ok: false, detail: UNSAFE }
+    return { ok: true, item: { type: 'checklist', title, items, editable } }
+  }
   if (typeof typed === 'object' && typed !== null && 'type' in typed && typed.type === 'explorer') {
     const parsed = explorerSchema.safeParse(typed)
     if (!parsed.success) return { ok: false, detail: `schema: ${parsed.error.issues[0]?.message ?? 'rejected'}` }
@@ -247,7 +286,7 @@ export function resolveInlineItem(value: unknown): InlineItemOutcome {
       // Options hold basic components only, so scenarios never nest.
       const typedRaw = withType(raw)
       const kind = typeof typedRaw === 'object' && typedRaw !== null && 'type' in typedRaw ? typedRaw.type : undefined
-      if (kind === 'calculator' || kind === 'explorer' || kind === 'scenarios') {
+      if (kind === 'calculator' || kind === 'explorer' || kind === 'scenarios' || kind === 'code' || kind === 'checklist') {
         return { ok: false, detail: `option ${index} item ${at}: a ${String(kind)} cannot go inside scenarios; options hold markdown, cards, table or chart, and a ${String(kind)} stands alone` }
       }
       const outcome = resolveBasicItem(typedRaw)
@@ -316,7 +355,7 @@ export function validateInlineArgs(args: unknown): InlineArgsOutcome {
   // Text before the call is folded once the turn ends, so the view itself must open with the conclusion.
   if (items[0]?.type !== 'markdown') return { ok: false, detail: 'start with a markdown conclusion' }
   // A call ends the turn, so a Markdown-only view would replace the data the answer was meant to show.
-  if (items.every(item => item.type === 'markdown')) return { ok: false, detail: 'add at least one table, chart, cards, explorer or calculator item' }
+  if (items.every(item => item.type === 'markdown')) return { ok: false, detail: 'add at least one table, chart, cards, explorer, calculator, code or checklist item' }
   return { ok: true, items: dropChartedTables(items) }
 }
 

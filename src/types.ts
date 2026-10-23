@@ -77,10 +77,10 @@ export interface IntelligentUiSeries {
   readonly values: readonly (number | null)[]
 }
 
-/** Bar or line chart over verified category and same-unit numeric columns. */
+/** Bar, line, area or donut chart over verified category and same-unit numeric columns; area and pie are `inline-stream` only. */
 export interface IntelligentUiChartItem {
   readonly type: 'chart'
-  readonly chart: 'bar' | 'line'
+  readonly chart: 'bar' | 'line' | 'area' | 'pie'
   readonly xLabel: string
   /** Shared unit of every series (`''` when unitless). */
   readonly unit: string
@@ -172,8 +172,24 @@ export interface IntelligentUiCalculatorItem {
   } | undefined
 }
 
+/** Alternative snippets of one task, one tab each, shown as literal code blocks (`inline-stream` only). */
+export interface IntelligentUiCodeItem {
+  readonly type: 'code'
+  readonly tabs: readonly { readonly label: string; readonly language: string; readonly code: string }[]
+}
+
+/** Items the reader ticks off, and may add to or remove, in local state only (`inline-stream` only). */
+export interface IntelligentUiChecklistItem {
+  readonly type: 'checklist'
+  readonly title: string
+  readonly items: readonly { readonly text: string; readonly checked: boolean; readonly group?: string | undefined }[]
+  /** The reader may add and remove items. */
+  readonly editable: boolean
+}
+
 /** One resolved view item; every string in it was copied from the bound answer. */
 export type IntelligentUiItem = IntelligentUiBasicItem | IntelligentUiScenariosItem | IntelligentUiExplorerItem | IntelligentUiCalculatorItem
+  | IntelligentUiCodeItem | IntelligentUiChecklistItem
 
 /** A validated, source-bound view. */
 export interface IntelligentUiView {

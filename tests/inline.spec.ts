@@ -154,6 +154,30 @@ describe('validateInlineArgs', () => {
     expect(validateInlineArgs({ items: [MARKDOWN, cards] }).ok).toBe(true)
   })
 
+  it('draws area over an ordered axis and pie only for nonnegative parts of one whole', () => {
+    const share = { type: 'chart', chart: 'pie', headers: ['厂商', '份额'], rows: [['A', '45%'], ['B', '30%'], ['C', '—'], ['D', '25%']], series: [1] }
+    expect(validateInlineArgs({ items: [MARKDOWN, share] })).toMatchObject({ ok: true, items: [{}, { chart: 'pie', series: [{ values: [45, 30, null, 25] }] }] })
+    expect(rejectsItem({ ...share, headers: ['厂商', '份额', '营收'], rows: share.rows.map(row => [...row, '1']), series: [1, 2] })).toContain('exactly one series')
+    expect(rejectsItem({ ...share, rows: [['A', '60'], ['B', '-10']] })).toContain('negative')
+    expect(rejectsItem({ ...share, rows: [['A', '100'], ['B', '0']] })).toContain('two positive')
+    expect(rejectsItem({ ...share, rows: Array.from({ length: 9 }, (_, index) => [`厂商${index}`, '1']) })).toContain('at most 8')
+    expect(validateInlineArgs({ items: [MARKDOWN, { ...CHART, chart: 'area' }] }).ok).toBe(true)
+    expect(rejectsItem({ ...share, chart: 'area', rows: [['A', '1'], ['B', '2']] })).toContain('ordered')
+  })
+
+  it('keeps code tabs literal and a checklist plain, and keeps both out of scenarios', () => {
+    const code = { tabs: [{ label: 'csv', language: 'python', code: 'import csv' }, { label: 'pandas', language: 'python', code: 'df = pd.read_csv("a.csv")  # <b>' }] }
+    expect(validateInlineArgs({ items: [MARKDOWN, code] })).toMatchObject({ ok: true, items: [{}, { type: 'code', tabs: [{ label: 'csv' }, { code: code.tabs[1]!.code }] }] })
+    expect(rejectsItem({ type: 'code', tabs: [code.tabs[0], { ...code.tabs[1], language: 'py\n<script>' }] })).toContain('fence tag')
+    expect(rejectsItem({ type: 'code', tabs: [code.tabs[0], code.tabs[0]] })).toContain('labels must differ')
+    const list = { type: 'checklist', title: '周日烤肉采购', items: [{ text: '牛肉 1.5kg', group: '肉类' }, { text: '土豆', checked: true }] }
+    expect(validateInlineArgs({ items: [MARKDOWN, list] })).toMatchObject({
+      ok: true, items: [{}, { editable: false, items: [{ text: '牛肉 1.5kg', checked: false, group: '肉类' }, { checked: true }] }],
+    })
+    expect(rejectsItem({ ...list, items: [{ text: '<img src=x>' }] })).toContain('HTML')
+    expect(rejectsItem({ ...SCENARIOS, options: [{ name: 'A', items: [list] }, { name: 'B', items: [list] }] })).toContain('checklist cannot go inside scenarios')
+  })
+
   it('drops a table that repeats a chart\'s data and keeps one with other columns', () => {
     const repeat = { type: 'table', headers: CHART.headers, rows: CHART.rows }
     const extra = { type: 'table', headers: [...CHART.headers, '环比'], rows: CHART.rows.map((row, index) => [...row, `${index}%`]) }
@@ -202,7 +226,7 @@ describe('validateInlineArgs', () => {
     expect(readInlineArgs('{"items":[]} trailing').ok).toBe(false)
     expect(readInlineArgs('{"items":[').ok).toBe(false)
     expect(validateInlineArgs({ items: [] }).ok).toBe(false)
-    expect(validateInlineArgs({ items: [MARKDOWN, MARKDOWN] })).toMatchObject({ ok: false, detail: expect.stringContaining('calculator item') })
+    expect(validateInlineArgs({ items: [MARKDOWN, MARKDOWN] })).toMatchObject({ ok: false, detail: expect.stringContaining('checklist item') })
     expect(validateInlineArgs({ items: [TABLE, MARKDOWN] })).toMatchObject({ ok: false, detail: expect.stringContaining('markdown conclusion') })
   })
 })

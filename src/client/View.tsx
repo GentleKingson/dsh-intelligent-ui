@@ -8,7 +8,7 @@ import type { ReactNode } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
-  IntelligentUiCalculatorItem, IntelligentUiCardsItem, IntelligentUiChartItem, IntelligentUiExplorerItem, IntelligentUiItem, IntelligentUiScenariosItem, IntelligentUiTableData,
+  IntelligentUiCalculatorItem, IntelligentUiCardsItem, IntelligentUiChartItem, IntelligentUiChecklistItem, IntelligentUiCodeItem, IntelligentUiExplorerItem, IntelligentUiItem, IntelligentUiScenariosItem, IntelligentUiTableData,
   IntelligentUiView,
 } from '../types.ts'
 import { analyzeColumn, parseCell, valueAxis } from '../numeric.ts'
@@ -84,8 +84,80 @@ function Item({ item, t, scale }: { item: IntelligentUiItem; t: T; scale?: reado
     case 'scenarios': return <Scenarios item={item} t={t} />
     case 'explorer': return <Explorer item={item} t={t} />
     case 'calculator': return <Calculator item={item} t={t} />
+    case 'code': return <CodeTabs item={item} t={t} />
+    case 'checklist': return <Checklist item={item} t={t} />
     default: return null
   }
+}
+
+/** One literal code block per tab; the fence outruns any backtick run in the code, so nothing renders as markup. */
+function CodeTabs({ item, t }: { item: IntelligentUiCodeItem; t: T }) {
+  const [selected, setSelected] = useState(0)
+  const tab = item.tabs[selected] ?? item.tabs[0]
+  if (tab === undefined) return null
+  const fence = '`'.repeat(Math.max(3, ...[...tab.code.matchAll(/`+/g)].map(run => run[0].length + 1)))
+  return (
+    <div className="diu-code">
+      <div className="diu-segments" role="group" aria-label={t('code.label')}>
+        {item.tabs.map((entry, index) => (
+          <button key={index} type="button" aria-pressed={index === selected} onClick={() => { setSelected(index) }}>{entry.label}</button>
+        ))}
+      </div>
+      <div className="diu-md"><Markdown text={`${fence}${tab.language}\n${tab.code}\n${fence}`} t={t} /></div>
+    </div>
+  )
+}
+
+/** Ticks, additions and removals stay in this view; nothing is saved or sent. */
+function Checklist({ item, t }: { item: IntelligentUiChecklistItem; t: T }) {
+  const initial = (): { id: number; text: string; checked: boolean; group?: string | undefined }[] => item.items.map((entry, id) => ({ ...entry, id }))
+  const [entries, setEntries] = useState(initial)
+  const [draft, setDraft] = useState('')
+  const next = useRef(item.items.length)
+  const done = entries.filter(entry => entry.checked).length
+  const groups = [...new Set(entries.map(entry => entry.group))]
+  const add = (): void => {
+    const text = draft.trim()
+    if (text === '') return
+    setEntries([...entries, { id: next.current++, text, checked: false }])
+    setDraft('')
+  }
+  return (
+    <section className="diu-explorer diu-checklist" aria-label={item.title}>
+      <div className="diu-explorer-head">
+        <div className="diu-chart-title" role="heading" aria-level={3}>{item.title}</div>
+        <span className="diu-muted" aria-live="polite">{t('checklist.progress', { done, total: entries.length })}</span>
+        <button type="button" className="diu-link" onClick={() => { setEntries(initial()) }}>{t('calculator.reset')}</button>
+      </div>
+      {groups.map(group => (
+        <div key={group ?? ''} role="group" aria-label={group}>
+          {group !== undefined && <div className="diu-checklist-group">{group}</div>}
+          <ul>
+            {entries.filter(entry => entry.group === group).map(entry => (
+              <li key={entry.id}>
+                <label>
+                  <input type="checkbox" checked={entry.checked}
+                    onChange={() => { setEntries(entries.map(other => other.id === entry.id ? { ...other, checked: !other.checked } : other)) }} />
+                  <span>{entry.text}</span>
+                </label>
+                {item.editable && (
+                  <button type="button" className="diu-icon" aria-label={t('checklist.remove', { text: entry.text })} title={t('checklist.remove', { text: entry.text })}
+                    onClick={() => { setEntries(entries.filter(other => other.id !== entry.id)) }}>×</button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {item.editable && (
+        <form className="diu-checklist-add" onSubmit={(event) => { event.preventDefault(); add() }}>
+          <input type="text" value={draft} maxLength={200} placeholder={t('checklist.placeholder')} aria-label={t('checklist.placeholder')}
+            onChange={(event) => { setDraft(event.target.value) }} />
+          <button type="submit" className="diu-link" disabled={draft.trim() === ''}>{t('checklist.add')}</button>
+        </form>
+      )}
+    </section>
+  )
 }
 
 /** Local inputs drive arithmetic outputs; nothing is sent anywhere. */
@@ -617,6 +689,7 @@ const MIN_WIDTH = 240
 const HEIGHT = 280
 const MARGIN = { top: 16, right: 16, bottom: 44, left: 60 }
 const DASHES = ['', '6 3', '2 3', '8 3 2 3']
+const KIND = { bar: 'chart.bar', line: 'chart.line', area: 'chart.area', pie: 'chart.pie' } as const
 const MAX_X_LABELS = 12
 const X_LABEL_SPACING = 40
 
@@ -659,7 +732,8 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
   }, [])
   const visible = item.series.map((series, index) => ({ series, index })).filter(entry => !hidden.has(entry.index))
   const values = visible.flatMap(entry => entry.series.values).filter((value): value is number => value !== null)
-  const { min, max, ticks, zeroBased } = valueAxis(scale === undefined ? values : [...values, ...scale], item.chart)
+  // An area's fill measures from zero, so it never zooms like a line.
+  const { min, max, ticks, zeroBased } = valueAxis(scale === undefined ? values : [...values, ...scale], item.chart === 'line' ? 'line' : 'bar')
   const plotW = width - MARGIN.left - MARGIN.right
   const plotH = HEIGHT - MARGIN.top - MARGIN.bottom
   const count = item.categories.length
@@ -668,7 +742,9 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
   const band = plotW / count
   const y = (value: number): number => MARGIN.top + (max - value) / (max - min) * plotH
   const center = (index: number): number => MARGIN.left + band * (index + 0.5)
-  const labelEvery = Math.ceil(count / Math.max(2, Math.min(MAX_X_LABELS, Math.floor(plotW / X_LABEL_SPACING))))
+  // Labels are cut to 10 characters; space them by the longest so "2025-01" labels never run together.
+  const spacing = Math.max(X_LABEL_SPACING, Math.min(10, Math.max(...item.categories.map(category => category.length))) * 7 + 8)
+  const labelEvery = Math.ceil(count / Math.max(2, Math.min(MAX_X_LABELS, Math.floor(plotW / spacing))))
   const toggle = (index: number): void => {
     const next = new Set(hidden)
     if (next.has(index)) next.delete(index)
@@ -676,7 +752,7 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
     setHidden(next)
   }
   const label = t('chart.label', {
-    kind: t(item.chart === 'bar' ? 'chart.bar' : 'chart.line'),
+    kind: t(KIND[item.chart]),
     x: item.xLabel,
     series: item.series.map(series => series.name).join('、'),
   })
@@ -690,17 +766,18 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
   return (
     <figure className="diu-chart">
       <figcaption>
-        <span className="diu-chart-title">{t('chart.title', { x: item.xLabel, kind: t(item.chart === 'bar' ? 'chart.bar' : 'chart.line') })}</span>
+        <span className="diu-chart-title">{t('chart.title', { x: item.xLabel, kind: t(KIND[item.chart]) })}</span>
         {item.unit !== '' && <span className="diu-muted">{t('chart.unit', { unit: item.unit })}</span>}
-        {!zeroBased && <span className="diu-muted">{t('chart.axisFrom', { min: formatNumber(min) })}</span>}
+        {!zeroBased && item.chart !== 'pie' && <span className="diu-muted">{t('chart.axisFrom', { min: formatNumber(min) })}</span>}
         {item.tableOnly !== undefined && <span className="diu-muted">{t('chart.tableOnly', { columns: item.tableOnly.join('、') })}</span>}
       </figcaption>
+      {item.chart === 'pie' ? <Pie item={item} selected={selected} onSelect={setSelected} t={t} /> : <>
       <div className="diu-legend" role="group" aria-label={t('chart.legend')}>
         {item.series.map((series, index) => (
           <button key={index} type="button" aria-pressed={!hidden.has(index)} className="diu-legend-item"
             onClick={() => { toggle(index) }}>
             <svg width="22" height="12" aria-hidden="true" className={`diu-s${index}`}>
-              <line x1="1" y1="6" x2="21" y2="6" strokeDasharray={item.chart === 'line' ? DASHES[index] : undefined} />
+              <line x1="1" y1="6" x2="21" y2="6" strokeDasharray={item.chart === 'bar' ? undefined : DASHES[index]} />
               <Marker shape={index} x={11} y={6} />
             </svg>
             {series.name}
@@ -740,15 +817,22 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
             : visible.map(({ series, index: seriesIndex }) => {
               // A missing value breaks the line; it is never drawn as zero.
               let path = ''
-              let pen = false
+              let area = ''
+              let run: number[] = []
+              const close = (): void => {
+                if (run.length > 0) area += `M${center(run[0]!)} ${y(0)}${run.map(index => `L${center(index)} ${y(series.values[index]!)}`).join('')}L${center(run.at(-1)!)} ${y(0)}Z`
+                run = []
+              }
               series.values.forEach((value, index) => {
-                if (value === null) { pen = false; return }
-                path += `${pen ? 'L' : 'M'}${center(index)} ${y(value)}`
-                pen = true
+                if (value === null) { close(); return }
+                path += `${run.length > 0 ? 'L' : 'M'}${center(index)} ${y(value)}`
+                run.push(index)
               })
+              close()
               return (
                 <g key={seriesIndex} className={`diu-s${seriesIndex} diu-line`}>
                   <path d={path} strokeDasharray={DASHES[seriesIndex]} />
+                  {item.chart === 'area' && <path className="diu-area" d={area} />}
                   {series.values.map((value, index) => value === null ? null : (
                     <Marker key={index} shape={seriesIndex} x={center(index)} y={y(value)} />
                   ))}
@@ -782,6 +866,7 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
           </div>
         )}
       </div>
+      </>}
       {selectedRow !== undefined && (
         <div className="diu-card diu-selection">
           <div className="diu-selection-control">
@@ -802,5 +887,56 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
         onClick={() => { setShowData(!showData) }}>{t(showData ? 'chart.hideData' : 'chart.viewData')}</button>
       {showData && <div id={dataId}><TableView table={item.table} t={t} /></div>}
     </figure>
+  )
+}
+
+const PIE = { size: 220, outer: 100, inner: 62 }
+
+/** Donut of one series; each category is a slice, and a missing value has none. */
+function Pie({ item, selected, onSelect, t }: { item: IntelligentUiChartItem; selected: number; onSelect: (index: number) => void; t: T }) {
+  const values = item.series[0]?.values ?? []
+  const total = values.reduce<number>((sum, value) => sum + (value ?? 0), 0)
+  const c = PIE.size / 2
+  const point = (angle: number, radius: number): string => `${c + radius * Math.sin(angle)} ${c - radius * Math.cos(angle)}`
+  const unit = item.unit === '' ? '' : ` ${item.unit}`
+  const share = (value: number): string => `${(value / total * 100).toFixed(1)}%`
+  let start = 0
+  const slices = values.map((value, index) => {
+    if (value === null || value <= 0) return null
+    const end = start + value / total * Math.PI * 2
+    const large = end - start > Math.PI ? 1 : 0
+    const d = `M${point(start, PIE.outer)}A${PIE.outer} ${PIE.outer} 0 ${large} 1 ${point(end, PIE.outer)}L${point(end, PIE.inner)}A${PIE.inner} ${PIE.inner} 0 ${large} 0 ${point(start, PIE.inner)}Z`
+    start = end
+    return { index, value, d }
+  })
+  const current = values[selected]
+  return (
+    <div className="diu-pie">
+      <svg viewBox={`0 0 ${PIE.size} ${PIE.size}`} role="img"
+        aria-label={t('chart.label', { kind: t('chart.pie'), x: item.xLabel, series: item.series[0]?.name ?? '' })}>
+        {slices.map(slice => slice !== null && (
+          <path key={slice.index} d={slice.d} className={`diu-s${slice.index}`} tabIndex={0} role="img"
+            aria-label={`${item.categories[slice.index]}：${formatNumber(slice.value)}${unit}（${share(slice.value)}）`}
+            opacity={selected === slice.index ? 1 : 0.6}
+            onClick={() => { onSelect(slice.index) }} onFocus={() => { onSelect(slice.index) }} />
+        ))}
+        <text x={c} y={c - 8} textAnchor="middle" className="diu-pie-name">{item.categories[selected]}</text>
+        <text x={c} y={c + 14} textAnchor="middle" className="diu-pie-value">
+          {current === null || current === undefined ? t('chart.missing') : share(current)}
+        </text>
+      </svg>
+      <div className="diu-legend" role="group" aria-label={item.xLabel}>
+        {item.categories.map((category, index) => {
+          const value = values[index]
+          return (
+            <button key={index} type="button" aria-pressed={selected === index} className="diu-legend-item" onClick={() => { onSelect(index) }}>
+              <span className={`diu-swatch diu-s${index}`} aria-hidden="true" />
+              {category}
+              <span className="diu-muted">{value === null || value === undefined ? t('chart.missing') : `${formatNumber(value)}${unit} · ${share(value)}`}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
