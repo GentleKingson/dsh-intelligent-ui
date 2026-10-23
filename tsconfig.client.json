@@ -8,5 +8,5 @@
     "lib": ["es2024", "dom", "dom.iterable"],
     "types": []
   },
-  "include": ["src/client", "src/shared", "src/types.ts", "src/numeric.ts", "src/limits.ts", "src/inline.ts", "src/program.ts", "src/source-index.ts", "src/explorer.ts"]
+  "include": ["src/client", "src/shared", "src/types.ts", "src/numeric.ts", "src/limits.ts", "src/inline.ts", "src/program.ts", "src/source-index.ts", "src/explorer.ts", "src/formula.ts"]
 }

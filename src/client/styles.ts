@@ -63,6 +63,16 @@ body[data-ds-dark-theme] .diu-root{--diu-neg:var(--dsw-alias-state-error-primary
 .diu-explorer .diu-selection .diu-aspects{grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))}
 .diu-explorer .diu-table button[aria-pressed=true]{background:color-mix(in srgb,var(--dsw-alias-state-business-primary,#3b6fd8) 14%,transparent);font-weight:600}
 .diu-details{min-width:0}
+.diu-calc-input{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--dsw-alias-label-secondary,#666);min-width:0}
+.diu-calc-input .diu-segments{margin:0;color:var(--dsw-alias-label-primary,inherit)}
+.diu-calc-range{display:flex;align-items:center;gap:8px;min-width:0}
+.diu-calc-range input[type=range]{flex:1;min-width:0;padding:0;border:0;background:none;accent-color:var(--dsw-alias-state-business-primary,#3b6fd8)}
+.diu-filter-fields .diu-calc-range input[type=number]{width:7.5em;flex:none;padding:6px 8px}
+.diu-metric strong[data-sign=negative]{color:var(--diu-neg)}
+.diu-metric strong small{font-size:13px;font-weight:500;margin-left:3px;white-space:nowrap}
+.diu-calculator code{overflow-wrap:anywhere}
+.diu-calculator .diu-metrics{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}
+.diu-calculator .diu-metric{overflow-wrap:normal}
 .diu-details summary{cursor:pointer;color:var(--dsw-alias-state-business-primary,#3b6fd8);font-size:12px;padding:6px 0}
 .diu-details summary:focus-visible{outline:2px solid var(--dsw-focus-ring-color,#3b6fd8);outline-offset:2px}
 .diu-details[open] summary{margin-bottom:12px}

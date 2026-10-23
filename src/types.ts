@@ -127,8 +127,35 @@ export interface IntelligentUiExplorerItem {
   ) | undefined
 }
 
+/** Inputs bound to arithmetic outputs that update as the reader changes them (`inline-stream` only). */
+export interface IntelligentUiCalculatorItem {
+  readonly type: 'calculator'
+  readonly title: string
+  /** A slider with a number box over `min..max`, or one button per option. */
+  readonly inputs: readonly {
+    readonly id: string
+    readonly label: string
+    readonly unit?: string | undefined
+    readonly value: number
+    readonly min?: number | undefined
+    readonly max?: number | undefined
+    readonly step?: number | undefined
+    readonly options?: readonly number[] | undefined
+  }[]
+  /** Formulas over input ids and earlier output ids (see `formula.ts`). */
+  readonly outputs: readonly {
+    readonly id?: string | undefined
+    readonly label: string
+    readonly unit?: string | undefined
+    readonly formula: string
+    readonly decimals: number
+    /** An intermediate term other formulas read; listed with the formulas, not as a result. */
+    readonly hidden?: boolean | undefined
+  }[]
+}
+
 /** One resolved view item; every string in it was copied from the bound answer. */
-export type IntelligentUiItem = IntelligentUiBasicItem | IntelligentUiScenariosItem | IntelligentUiExplorerItem
+export type IntelligentUiItem = IntelligentUiBasicItem | IntelligentUiScenariosItem | IntelligentUiExplorerItem | IntelligentUiCalculatorItem
 
 /** A validated, source-bound view. */
 export interface IntelligentUiView {
