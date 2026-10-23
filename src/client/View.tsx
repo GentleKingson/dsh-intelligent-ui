@@ -8,10 +8,11 @@ import type { ReactNode } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
-  IntelligentUiCardsItem, IntelligentUiChartItem, IntelligentUiItem, IntelligentUiScenariosItem, IntelligentUiTableData,
+  IntelligentUiCardsItem, IntelligentUiChartItem, IntelligentUiExplorerItem, IntelligentUiItem, IntelligentUiScenariosItem, IntelligentUiTableData,
   IntelligentUiView,
 } from '../types.ts'
 import { analyzeColumn, parseCell, valueAxis } from '../numeric.ts'
+import { explore, explorerDefaults } from '../explorer.ts'
 import type { NS } from './locales.ts'
 
 type T = TranslateNS<typeof NS>
@@ -73,6 +74,7 @@ function Item({ item, t, scale }: { item: IntelligentUiItem; t: T; scale?: reado
     case 'table': return item.presentation === 'comparison' ? <Comparison table={item.table} t={t} /> : <TableView table={item.table} t={t} />
     case 'chart': return <Chart item={item} t={t} scale={scale} />
     case 'scenarios': return <Scenarios item={item} t={t} />
+    case 'explorer': return <Explorer item={item} t={t} />
     default: return null
   }
 }
@@ -99,6 +101,98 @@ function Scenarios({ item, t }: { item: IntelligentUiScenariosItem; t: T }) {
         {option?.items.map((child, index) => <Item key={index} item={child} t={t} scale={scale(index)} />)}
       </div>
     </div>
+  )
+}
+
+/** One state owner for the filters, computed summaries and complete record inspector. */
+function Explorer({ item, t }: { item: IntelligentUiExplorerItem; t: T }) {
+  const [filters, setFilters] = useState(() => explorerDefaults(item))
+  const [selectedKey, setSelected] = useState(item.table.rows[0]?.[item.selection] ?? '')
+  const id = useId()
+  const { rows, selected, metrics } = useMemo(() => explore(item, filters, selectedKey), [item, filters, selectedKey])
+  const at = selected === undefined ? -1 : rows.indexOf(selected)
+  const selectRow = (row: readonly string[]): void => {
+    setFilters(filters.map((value, index) => value === null || value === row[item.filters[index]?.column ?? 0]
+      ? value : row[item.filters[index]?.column ?? 0] ?? ''))
+    setSelected(row[item.selection] ?? '')
+  }
+  return (
+    <section className="diu-explorer" aria-label={item.title}>
+      <div className="diu-explorer-head">
+        <div className="diu-chart-title" role="heading" aria-level={3}>{item.title}</div>
+        <button type="button" className="diu-link" onClick={() => {
+          setFilters(explorerDefaults(item)); setSelected(item.table.rows[0]?.[item.selection] ?? '')
+        }}>{t('explorer.reset')}</button>
+      </div>
+      {item.filters.length > 0 && (
+        <div className="diu-filter-fields">
+          {item.filters.map((filter, index) => {
+            const options = [...new Set(item.table.rows.map(row => row[filter.column] ?? ''))]
+            const value = filters[index]
+            return (
+              <label key={filter.column}>
+                <span>{item.table.headers[filter.column]}</span>
+                <select value={value == null ? '' : options.indexOf(value)} onChange={(event) => {
+                  const next = [...filters]
+                  next[index] = event.target.value === '' ? null : options[Number(event.target.value)] ?? ''
+                  // A4 and B4 may name the same step in two scenarios; keep its position when names differ.
+                  const nextSelected = explore(item, next, selectedKey, item.steps ? at : 0).selected
+                  setFilters(next)
+                  setSelected(nextSelected?.[item.selection] ?? '')
+                }}>
+                  {filter.all && <option value="">{t('explorer.all')}</option>}
+                  {options.map((option, at) => <option key={at} value={at}>{option || t('chart.missing')}</option>)}
+                </select>
+              </label>
+            )
+          })}
+        </div>
+      )}
+      {metrics.length > 0 && (
+        <div aria-live="polite" aria-atomic="true">
+          <div className="diu-metrics">
+            {metrics.map((metric, index) => (
+              <div key={index} className="diu-metric">
+                <span className="diu-muted">{metric.label}</span>
+                <strong>{metric.value === null ? '—' : metric.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}{metric.unit && ` ${metric.unit}`}</strong>
+                {metric.count !== undefined && <span className="diu-muted">n={metric.count}</span>}
+              </div>
+            ))}
+          </div>
+          <div className="diu-metric-note diu-muted">{t('explorer.computed')}</div>
+        </div>
+      )}
+      <section className="diu-card diu-selection" aria-label={t('explorer.details')}>
+        <div className="diu-selection-control">
+          <label htmlFor={`${id}-record`}>{item.table.headers[item.selection]}</label>
+          <select id={`${id}-record`} disabled={selected === undefined} value={selected?.[item.selection] ?? ''}
+            onChange={(event) => { setSelected(event.target.value) }}>
+            {rows.map(row => <option key={row[item.selection]} value={row[item.selection]}>{row[item.selection]}</option>)}
+          </select>
+        </div>
+        {item.steps && (
+          <div className="diu-stepper">
+            <button type="button" disabled={at <= 0} onClick={() => { setSelected(rows[at - 1]?.[item.selection] ?? '') }}>{t('explorer.previous')}</button>
+            <span className="diu-muted">{at + 1} / {rows.length}</span>
+            <button type="button" disabled={at < 0 || at >= rows.length - 1}
+              onClick={() => { setSelected(rows[at + 1]?.[item.selection] ?? '') }}>{t('explorer.next')}</button>
+          </div>
+        )}
+        {selected === undefined ? <p role="status">{t('table.empty')}</p> : (
+          <dl className="diu-aspects" aria-live="polite" aria-atomic="true">
+            {item.table.headers.map((header, column) => (
+              <div key={column} className={(selected[column]?.length ?? 0) > 100 ? 'diu-wide' : undefined}>
+                <dt>{header}</dt><dd data-kind={parseCell(selected[column] ?? '').kind}>{selected[column]}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </section>
+      <details className="diu-details">
+        <summary>{t('explorer.source', { total: item.table.rows.length })}</summary>
+        <TableView table={item.table} t={t} onSelect={selectRow} selectedRow={selected} selectColumn={item.selection} />
+      </details>
+    </section>
   )
 }
 
@@ -183,7 +277,12 @@ function compareCells(left: string, right: string): number {
  * @param props - table data and translator.
  * @returns the table with its controls.
  */
-export function TableView({ table, t }: { table: IntelligentUiTableData; t: T }) {
+export function TableView({ table, t, onSelect, selectedRow, selectColumn = 0 }: {
+  table: IntelligentUiTableData; t: T
+  onSelect?: ((row: readonly string[]) => void) | undefined
+  selectedRow?: readonly string[] | undefined
+  selectColumn?: number | undefined
+}) {
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<{ column: number; dir: SortDir } | null>(null)
   const [unfolded, setUnfolded] = useState(false)
@@ -242,7 +341,11 @@ export function TableView({ table, t }: { table: IntelligentUiTableData; t: T })
                     const text = row[column] ?? ''
                     const kind = parseCell(text).kind
                     return <td key={column} className={text.length <= NOWRAP_CHARS ? 'diu-nowrap' : 'diu-wrap'}
-                      data-kind={kind} style={{ textAlign: alignments[column] }}>{text}</td>
+                      data-kind={kind} style={{ textAlign: alignments[column] }}>
+                      {onSelect !== undefined && column === selectColumn
+                        ? <button type="button" className="diu-link" aria-pressed={row === selectedRow} onClick={() => { onSelect(row) }}>{text}</button>
+                        : text}
+                    </td>
                   })}
                 </tr>
               ))}

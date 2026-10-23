@@ -79,8 +79,31 @@ export interface IntelligentUiScenariosItem {
         readonly items: readonly IntelligentUiBasicItem[];
     }[];
 }
+/** One inline dataset whose filters, summaries and selected record share state. */
+export interface IntelligentUiExplorerItem {
+    readonly type: 'explorer';
+    readonly title: string;
+    readonly table: IntelligentUiTableData;
+    /** Record/step column, unique within each combination of required filters. */
+    readonly selection: number;
+    readonly filters: readonly {
+        readonly column: number;
+        readonly all: boolean;
+    }[];
+    readonly metrics: readonly ({
+        readonly op: 'count';
+        readonly label: string;
+        readonly column?: number | undefined;
+    } | {
+        readonly op: 'mean';
+        readonly label: string;
+        readonly column: number;
+        readonly groupBy?: number | undefined;
+    })[];
+    readonly steps: boolean;
+}
 /** One resolved view item; every string in it was copied from the bound answer. */
-export type IntelligentUiItem = IntelligentUiBasicItem | IntelligentUiScenariosItem;
+export type IntelligentUiItem = IntelligentUiBasicItem | IntelligentUiScenariosItem | IntelligentUiExplorerItem;
 /** A validated, source-bound view. */
 export interface IntelligentUiView {
     readonly items: readonly IntelligentUiItem[];

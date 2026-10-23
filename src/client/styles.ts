@@ -35,6 +35,21 @@ body[data-ds-dark-theme] .diu-root{--diu-s0:#7aa2f7;--diu-s1:#f0a35e;--diu-s2:#5
 .diu-selection-control{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12px}
 .diu-selection select{font:inherit;color:inherit;background:var(--dsw-alias-bg-l1,Canvas);border:1px solid var(--diu-border);border-radius:6px;padding:7px 10px;max-width:100%;min-width:0}
 .diu-selection select:focus-visible{outline:2px solid var(--dsw-focus-ring-color,#3b6fd8);outline-offset:1px}
+.diu-explorer{display:flex;flex-direction:column;gap:16px;min-width:0}
+.diu-explorer-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.diu-filter-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px}
+.diu-filter-fields label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--dsw-alias-label-secondary,#666)}
+.diu-filter-fields select{font:inherit;font-size:14px;color:inherit;background:var(--dsw-alias-bg-l1,Canvas);border:1px solid var(--diu-border);border-radius:8px;padding:10px;min-width:0;max-width:100%}
+.diu-filter-fields select:focus-visible{outline:2px solid var(--dsw-focus-ring-color,#3b6fd8);outline-offset:1px}
+.diu-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr));gap:10px}
+.diu-metric{display:flex;flex-direction:column;gap:4px;border:1px solid var(--diu-border);border-radius:10px;padding:12px;min-width:0;overflow-wrap:anywhere}
+.diu-metric strong{font-size:22px;font-variant-numeric:tabular-nums}
+.diu-metric-note{margin-top:6px}
+.diu-stepper{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--diu-border);padding-bottom:10px;margin-bottom:4px}
+.diu-stepper button{min-height:36px}
+.diu-explorer .diu-wide{grid-column:1/-1}
+.diu-explorer .diu-selection .diu-aspects{grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))}
+.diu-explorer .diu-table button[aria-pressed=true]{background:color-mix(in srgb,var(--dsw-alias-state-business-primary,#3b6fd8) 14%,transparent);font-weight:600}
 .diu-details{min-width:0}
 .diu-details summary{cursor:pointer;color:var(--dsw-alias-state-business-primary,#3b6fd8);font-size:12px;padding:6px 0}
 .diu-details summary:focus-visible{outline:2px solid var(--dsw-focus-ring-color,#3b6fd8);outline-offset:2px}
