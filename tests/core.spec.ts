@@ -83,8 +83,8 @@ describe('chart axes', () => {
     expect(mixed.min).toBeLessThan(-30)
     expect(mixed.ticks).toContain(0)
     expect(valueAxis([-100, -97], 'line').max).toBeLessThanOrEqual(0)
-    for (const values of [[], [0, 0], [5, 5], [-5, -5], [0.0001, 0.0002], [1e12, 1e12 + 1]]) {
-      for (const chart of ['bar', 'line'] as const) {
+    for (const values of [[], [0, 0], [0, 5], [-30, 80, 120], [5, 5], [-5, -5], [0.0001, 0.0002], [1e12, 1e12 + 1]]) {
+      for (const chart of ['bar', 'line', 'scatter'] as const) {
         const axis = valueAxis(values, chart)
         expect(axis.ticks.length).toBeGreaterThan(1)
         expect(axis.ticks.length).toBeLessThan(20)
