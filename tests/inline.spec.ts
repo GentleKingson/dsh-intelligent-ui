@@ -191,7 +191,7 @@ describe('validateInlineArgs', () => {
     ['one card', { type: 'cards', cards: [{ title: 'A', markdown: 'a' }] }, 'schema'],
     ['one scenario option', { ...SCENARIOS, options: [growth('保守', 0.05)] }, 'schema'],
     ['repeated scenario names', { ...SCENARIOS, options: [growth('保守', 0.05), growth('保守', 0.2)] }, 'differ'],
-    ['nested scenarios', { ...SCENARIOS, options: [growth('保守', 0.05), { name: '乐观', items: [SCENARIOS] }] }, 'option 1 item 0: schema'],
+    ['nested scenarios', { ...SCENARIOS, options: [growth('保守', 0.05), { name: '乐观', items: [SCENARIOS] }] }, 'option 1 item 0: a scenarios cannot go inside scenarios'],
     ['invalid item in an option', { ...SCENARIOS, options: [growth('保守', 0.05), { name: '乐观', items: [{ ...TABLE, rows: [['Q1']] }] }] }, 'option 1 item 0'],
     ['HTML in a scenario name', { ...SCENARIOS, options: [growth('<b>保守</b>', 0.05), growth('乐观', 0.2)] }, 'HTML'],
   ])('rejects %s', (_name, item, detail) => {

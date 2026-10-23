@@ -28,6 +28,13 @@ export declare function parseFormula(source: string): Formula;
  */
 export declare function computeCalculator(item: IntelligentUiCalculatorItem, values: readonly number[], formulas?: readonly Formula[]): (number | null)[];
 /**
+ * Keep a reader's value inside the input's declared range; options need no clamp.
+ * @param input - one bound calculator input.
+ * @param value - the value the reader entered.
+ * @returns the value the formulas may read.
+ */
+export declare function clampInput(input: IntelligentUiCalculatorItem['inputs'][number], value: number): number;
+/**
  * Check a calculator written by the model: names, ranges, and that every
  * formula reads only inputs and earlier outputs and is finite at the defaults.
  * @param item - schema-checked calculator.

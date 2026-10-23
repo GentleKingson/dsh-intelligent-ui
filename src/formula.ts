@@ -24,7 +24,7 @@ const FUNCTIONS: Readonly<Record<string, { min: number; max: number; fn: (...arg
   round: { min: 1, max: 2, fn: (value, digits = 0) => Math.round(value * 10 ** digits) / 10 ** digits },
 }
 
-const TOKEN = /\s*(?:(\d+(?:\.\d*)?(?:e[+-]?\d+)?|\.\d+(?:e[+-]?\d+)?)|([A-Za-z_]\w*)|(\*\*|<=|>=|==|!=|&&|\|\||[-+*/%^()<>?:,!]))/gy
+const TOKEN = /\s*(?:(\d+(?:\.\d*)?(?:[eE][+-]?\d+)?|\.\d+(?:[eE][+-]?\d+)?)|([A-Za-z_]\w*)|(\*\*|<=|>=|==|!=|&&|\|\||[-+*/%^()<>?:,!]))/gy
 
 /** A parsed formula and the names it reads. */
 export interface Formula {
@@ -159,6 +159,33 @@ export function computeCalculator(
 
 const IDENT = /^[A-Za-z_]\w{0,31}$/
 
+/** The value lies on min + k·step, within float noise. */
+const onGrid = (value: number, min: number, step: number): boolean => {
+  const steps = (value - min) / step
+  return Math.abs(steps - Math.round(steps)) < 1e-9
+}
+
+/**
+ * A round step for a range without one: a power of ten near 1/100 of the
+ * range (1 for an all-integer range), refined until the default lies on it.
+ */
+function defaultStep(min: number, max: number, value: number): number {
+  let step = 10 ** Math.floor(Math.log10((max - min) / 100))
+  if ([min, max, value].every(Number.isInteger)) step = Math.max(1, step)
+  while (!onGrid(value, min, step) && step > 1e-9) step /= 10
+  return step
+}
+
+/**
+ * Keep a reader's value inside the input's declared range; options need no clamp.
+ * @param input - one bound calculator input.
+ * @param value - the value the reader entered.
+ * @returns the value the formulas may read.
+ */
+export function clampInput(input: IntelligentUiCalculatorItem['inputs'][number], value: number): number {
+  return Math.min(input.max ?? value, Math.max(input.min ?? value, value))
+}
+
 /**
  * Check a calculator written by the model: names, ranges, and that every
  * formula reads only inputs and earlier outputs and is finite at the defaults.
@@ -186,7 +213,11 @@ export function bindCalculator(item: IntelligentUiCalculatorItem): IntelligentUi
     const { min, max } = input
     if (min === undefined || max === undefined || !(min < max)) throw new BindingError(`calculator: input ${input.id} needs options, or min < max`)
     if (input.value < min || input.value > max) throw new BindingError(`calculator: input ${input.id} default is outside min..max`)
-    return { ...input, step: input.step ?? (max - min) / 100 }
+    if (input.step === undefined) return { ...input, step: defaultStep(min, max, input.value) }
+    if (input.step > max - min) throw new BindingError(`calculator: input ${input.id} step is larger than max - min`)
+    // A slider draws an off-grid default at the nearest step, so the thumb and the results would disagree.
+    if (!onGrid(input.value, min, input.step)) throw new BindingError(`calculator: input ${input.id} default is not min + a whole number of steps`)
+    return input
   })
   const formulas = item.outputs.map((output) => {
     const formula = parseFormula(output.formula)

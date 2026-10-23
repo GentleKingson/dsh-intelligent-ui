@@ -13,7 +13,7 @@ import type {
 } from '../types.ts'
 import { analyzeColumn, parseCell, valueAxis } from '../numeric.ts'
 import { explore, explorerDefaults, explorerPlot } from '../explorer.ts'
-import { computeCalculator, parseFormula } from '../formula.ts'
+import { clampInput, computeCalculator, parseFormula } from '../formula.ts'
 import type { NS } from './locales.ts'
 
 type T = TranslateNS<typeof NS>
@@ -96,19 +96,21 @@ function Calculator({ item, t }: { item: IntelligentUiCalculatorItem; t: T }) {
   const formulas = useMemo(() => item.outputs.map(output => parseFormula(output.formula)), [item])
   const results = useMemo(() => computeCalculator(item, values, formulas), [item, values, formulas])
   const id = useId()
-  // Typing passes through intermediate values (1 → 10 → 100), so the number box clamps only when it loses focus.
-  const set = (index: number, value: number, clamp = true): void => {
-    if (clamp) setDrafts({})
+  // Formulas only ever read in-range values; while typing passes through 1 → 10 → 100 the box keeps its text.
+  const set = (index: number, value: number): void => {
     const input = item.inputs[index]
     if (input === undefined || !Number.isFinite(value)) return
-    const next = clamp ? Math.min(input.max ?? value, Math.max(input.min ?? value, value)) : value
-    setValues(current => current.map((old, at) => at === index ? next : old))
+    setValues(current => current.map((old, at) => at === index ? clampInput(input, value) : old))
+  }
+  const settle = (inputId: string): void => {
+    const { [inputId]: _, ...rest } = drafts
+    setDrafts(rest)
   }
   return (
     <section className="diu-explorer diu-calculator" aria-label={item.title}>
       <div className="diu-explorer-head">
         <div className="diu-chart-title" role="heading" aria-level={3}>{item.title}</div>
-        <button type="button" className="diu-link" disabled={values.every((value, index) => value === defaults[index])}
+        <button type="button" className="diu-link" disabled={Object.keys(drafts).length === 0 && values.every((value, index) => value === defaults[index])}
           onClick={() => { setValues(defaults); setDrafts({}) }}>{t('calculator.reset')}</button>
       </div>
       <div className="diu-filter-fields">
@@ -132,16 +134,16 @@ function Calculator({ item, t }: { item: IntelligentUiCalculatorItem; t: T }) {
               <label htmlFor={`${id}-${input.id}`}>{input.label}{unit && ` (${input.unit})`}</label>
               <div className="diu-calc-range">
                 <input type="range" aria-label={input.label} min={input.min} max={input.max} step={input.step} value={value}
-                  onChange={(event) => { set(index, Number(event.target.value)) }} />
+                  onChange={(event) => { settle(input.id); set(index, Number(event.target.value)) }} />
                 <input id={`${id}-${input.id}`} type="number" min={input.min} max={input.max} step={input.step}
                   value={drafts[input.id] ?? value}
                   onChange={(event) => {
                     const text = event.target.value
                     setDrafts({ ...drafts, [input.id]: text })
                     // An empty or unfinished entry keeps the last number until it parses.
-                    if (text.trim() !== '') set(index, Number(text), false)
+                    if (text.trim() !== '') set(index, Number(text))
                   }}
-                  onBlur={() => { set(index, value) }} />
+                  onBlur={() => { settle(input.id) }} />
               </div>
             </div>
           )
@@ -150,7 +152,8 @@ function Calculator({ item, t }: { item: IntelligentUiCalculatorItem; t: T }) {
       <div aria-live="polite" aria-atomic="true">
         <div className="diu-metrics">
           {item.outputs.map((output, index) => {
-            const value = results[index] ?? null
+            // Round first, so float noise such as -0.0000001 shows as 0.00 rather than a red -0.00.
+            const value = results[index] == null ? null : Number(results[index].toFixed(output.decimals)) || 0
             if (output.hidden === true) return null
             return (
               <div key={index} className="diu-metric">
