@@ -4,6 +4,7 @@ import { readProgram } from '../src/program.ts'
 import { screen } from '../src/smart-auto.ts'
 import { buildSourceIndex } from '../src/source-index.ts'
 import { SAMPLES } from './fixtures/smart-auto-samples.ts'
+import { viewSchema } from '../src/view-schema.ts'
 
 const TABLE_ANSWER = [
   '## 季度营收',
@@ -122,6 +123,26 @@ describe('program validation (fails closed)', () => {
     expect(table?.type === 'table' && table.table.headers).toEqual(['地区', '门店'])
   })
 
+  it('binds comparison cards to the full unchanged table, and reads old table records', () => {
+    const source = buildSourceIndex('| 方案 | 持久化 | 成本 |\n| --- | --- | ---: |\n| Redis | 支持 | ¥30 |\n| 内存缓存 | 未公布 | 0 |')
+    const output = JSON.stringify({ version: 1, items: [{ type: 'table', table: 't0', presentation: 'comparison' }] })
+    const outcome = readProgram(output, source)
+    if (outcome.kind !== 'view') throw new Error(JSON.stringify(outcome))
+    expect(outcome.view.items).toEqual([{ type: 'table', table: source.tables.get('t0')?.data, presentation: 'comparison' }])
+    expect(viewSchema.safeParse(outcome.view).success).toBe(true)
+    expect(viewSchema.safeParse({ items: [{ type: 'table', table: source.tables.get('t0')?.data }] }).success).toBe(true)
+  })
+
+  it.each([
+    ['one option', ['A']],
+    ['too many options', ['A', 'B', 'C', 'D', 'E']],
+    ['repeated names', ['A', 'A']],
+    ['blank name', ['A', '']],
+  ])('rejects comparison presentation with %s', (_name, names) => {
+    const source = buildSourceIndex(['| 方案 | 说明 |', '| --- | --- |', ...names.map(name => `| ${name} | 原文 |`)].join('\n'))
+    expect(readProgram('{"version":1,"items":[{"type":"table","table":"t0","presentation":"comparison"}]}', source).kind).toBe('invalid')
+  })
+
   it('draws unordered categories only as bars', () => {
     const shops = buildSourceIndex('| 门店 | 销量 |\n| --- | --- |\n| A | 3 |\n| B | 5 |\n| C | 4 |')
     expect(readProgram('{"version":1,"items":[{"type":"chart","table":"t0","chart":"bar","x":"c0","series":["c1"]}]}', shops).kind).toBe('view')
@@ -143,6 +164,7 @@ describe('program validation (fails closed)', () => {
     ['unknown component', '{"version":1,"items":[{"type":"html","html":"<script>"}]}'],
     ['unknown block id', '{"version":1,"items":[{"type":"markdown","blocks":["b99"]}]}'],
     ['unknown table id', '{"version":1,"items":[{"type":"table","table":"t7"}]}'],
+    ['unknown table presentation', '{"version":1,"items":[{"type":"table","table":"t0","presentation":"dashboard"}]}'],
     ['repeated block', '{"version":1,"items":[{"type":"markdown","blocks":["b2","b2"]}]}'],
     ['text column as series', '{"version":1,"items":[{"type":"chart","table":"t0","chart":"bar","x":"c0","series":["c3"]}]}'],
     ['axis with a missing cell', '{"version":1,"items":[{"type":"chart","table":"t0","chart":"line","x":"c1","series":["c2"]}]}'],

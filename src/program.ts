@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod'
-import type { IntelligentUiCard, IntelligentUiChartItem, IntelligentUiItem, IntelligentUiView } from './types.ts'
+import type { IntelligentUiCard, IntelligentUiChartItem, IntelligentUiItem, IntelligentUiTableData, IntelligentUiTableItem, IntelligentUiView } from './types.ts'
 import type { SourceBlock, SourceIndex, SourceTable } from './source-index.ts'
 import { displayUnit } from './numeric.ts'
 import { LIMITS } from './limits.ts'
@@ -22,7 +22,7 @@ const programItem = z.discriminatedUnion('type', [
     type: z.literal('cards'),
     cards: z.array(z.strictObject({ source: blockList })).min(2).max(LIMITS.cards),
   }),
-  z.strictObject({ type: z.literal('table'), table: tableId }),
+  z.strictObject({ type: z.literal('table'), table: tableId, presentation: z.literal('comparison').optional() }),
   z.strictObject({
     type: z.literal('chart'),
     table: tableId,
@@ -135,7 +135,7 @@ function resolveItem(item: Program['items'][number], index: SourceIndex): Intell
       return { type: 'cards', cards: item.cards.map(entry => card(index, entry.source)) }
     }
     case 'table':
-      return { type: 'table', table: table(index, item.table).data }
+      return bindTable(table(index, item.table).data, item.presentation)
     case 'chart':
       return bindChart(table(index, item.table), item)
     default: {
@@ -143,6 +143,15 @@ function resolveItem(item: Program['items'][number], index: SourceIndex): Intell
       throw new BindingError(`unknown item ${String(exhaustive)}`)
     }
   }
+}
+
+/** Bind a table without rewriting cells; comparison cards need 2–4 distinct option names in column 0. */
+export function bindTable(data: IntelligentUiTableData, presentation?: 'comparison'): IntelligentUiTableItem {
+  if (presentation === undefined) return { type: 'table', table: data }
+  const names = data.rows.map(row => row[0]?.trim() ?? '')
+  if (data.headers.length < 2 || names.length < 2 || names.length > 4 || names.some(name => name === '')
+    || new Set(names).size !== names.length) throw new BindingError('comparison needs 2-4 distinct named options in column 0')
+  return { type: 'table', table: data, presentation }
 }
 
 /**

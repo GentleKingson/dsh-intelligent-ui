@@ -40,6 +40,9 @@ export function Region({ view, t }: { view: IntelligentUiView; t: T }) {
   const [open, setOpen] = useState(true)
   const [closed, setClosed] = useState(false)
   const bodyId = useId()
+  const [note, main] = view.items
+  const composed = view.items.length === 2 && note?.type === 'markdown' && note.markdown.length <= 320
+    && (main?.type === 'chart' || (main?.type === 'table' && main.presentation === undefined))
   if (closed) {
     return <button type="button" className="diu-link" onClick={() => { setClosed(false) }}>{t('region.reopen')}</button>
   }
@@ -55,7 +58,7 @@ export function Region({ view, t }: { view: IntelligentUiView; t: T }) {
           onClick={() => { setClosed(true) }}>×</button>
       </header>
       {open && (
-        <div id={bodyId} className="diu-body">
+        <div id={bodyId} className={composed ? 'diu-body diu-composed' : 'diu-body'}>
           {view.items.map((item, index) => <Item key={index} item={item} t={t} />)}
         </div>
       )}
@@ -67,7 +70,7 @@ function Item({ item, t, scale }: { item: IntelligentUiItem; t: T; scale?: reado
   switch (item.type) {
     case 'markdown': return <div className="diu-md"><Markdown text={item.markdown} t={t} /></div>
     case 'cards': return <Cards item={item} t={t} />
-    case 'table': return <TableView table={item.table} t={t} />
+    case 'table': return item.presentation === 'comparison' ? <Comparison table={item.table} t={t} /> : <TableView table={item.table} t={t} />
     case 'chart': return <Chart item={item} t={t} scale={scale} />
     case 'scenarios': return <Scenarios item={item} t={t} />
     default: return null
@@ -122,6 +125,30 @@ function CardView({ title, markdown, t }: { title: string; markdown: string; t: 
           onClick={() => { setExpanded(!expanded) }}>{t(expanded ? 'card.collapse' : 'card.expand')}</button>
       )}
     </li>
+  )
+}
+
+/** Source cells stay plain text, as in TableView; card formatting never interprets their Markdown. */
+function Comparison({ table, t }: { table: IntelligentUiTableData; t: T }) {
+  return (
+    <div className="diu-comparison">
+      <ul className="diu-cards">
+        {table.rows.map((row, index) => (
+          <li key={index} className="diu-card">
+            <div className="diu-card-title" role="heading" aria-level={4}>{row[0]}</div>
+            <dl className="diu-aspects">
+              {table.headers.slice(1).map((header, column) => (
+                <div key={column}><dt>{header}</dt><dd>{row[column + 1]}</dd></div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ul>
+      <details className="diu-details">
+        <summary>{t('comparison.viewTable')}</summary>
+        <TableView table={table} t={t} />
+      </details>
+    </div>
   )
 }
 

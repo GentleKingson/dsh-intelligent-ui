@@ -47,6 +47,8 @@ export interface IntelligentUiTableData {
 export interface IntelligentUiTableItem {
     readonly type: 'table';
     readonly table: IntelligentUiTableData;
+    /** Small option-by-aspect tables can show cards first, with the full table on demand. */
+    readonly presentation?: 'comparison' | undefined;
 }
 /** One plotted numeric column; `null` marks an explicitly missing cell. */
 export interface IntelligentUiSeries {

@@ -23,6 +23,7 @@ export declare const viewSchema: z.ZodObject<{
             }>>;
             rows: z.ZodArray<z.ZodArray<z.ZodString>>;
         }, z.core.$strict>;
+        presentation: z.ZodOptional<z.ZodLiteral<"comparison">>;
     }, z.core.$strict>, z.ZodObject<{
         type: z.ZodLiteral<"chart">;
         chart: z.ZodEnum<{
