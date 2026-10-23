@@ -5,7 +5,7 @@
  * model.
  */
 import { z } from 'zod';
-import type { IntelligentUiChartItem, IntelligentUiView } from './types.ts';
+import type { IntelligentUiChartItem, IntelligentUiTableData, IntelligentUiTableItem, IntelligentUiView } from './types.ts';
 import type { SourceIndex, SourceTable } from './source-index.ts';
 /** Model output schema: exactly one version tag and 1..8 items. */
 export declare const programSchema: z.ZodObject<{
@@ -21,6 +21,7 @@ export declare const programSchema: z.ZodObject<{
     }, z.core.$strict>, z.ZodObject<{
         type: z.ZodLiteral<"table">;
         table: z.ZodString;
+        presentation: z.ZodOptional<z.ZodLiteral<"comparison">>;
     }, z.core.$strict>, z.ZodObject<{
         type: z.ZodLiteral<"chart">;
         table: z.ZodString;
@@ -54,6 +55,8 @@ export declare function readProgram(output: string, index: SourceIndex): Program
 /** A program referenced something the bound answer does not offer. */
 export declare class BindingError extends Error {
 }
+/** Bind a table without rewriting cells; comparison cards need 2–4 distinct option names in column 0. */
+export declare function bindTable(data: IntelligentUiTableData, presentation?: 'comparison'): IntelligentUiTableItem;
 /**
  * Bind a chart to verified table columns; every plotted value is parsed from
  * the table's own cell text, so the chart and its "view data" table agree.

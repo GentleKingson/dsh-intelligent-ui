@@ -101,6 +101,19 @@ describe('validateInlineArgs', () => {
     expect(outcome.ok && outcome.items[2]).toMatchObject({ chart: 'line', categories: ['1月', '2月', '3月'] })
   })
 
+  it('uses the same comparison binding for streamed preview and completed calls', () => {
+    const comparison = { type: 'table', presentation: 'comparison', headers: ['方案', '价格'], rows: [['A', '¥30'], ['B', '未公布']] }
+    const raw = JSON.stringify({ items: [MARKDOWN, comparison] })
+    const preview = new InlineArgsStream().feed(raw).items[1]
+    const complete = readInlineArgs(raw)
+    expect(complete.ok).toBe(true)
+    if (!complete.ok) return
+    expect(preview).toEqual({ ok: true, item: complete.items[1] })
+    expect(complete.items[1]).toMatchObject({ presentation: 'comparison', table: { headers: comparison.headers, rows: comparison.rows } })
+    expect(rejectsItem({ ...comparison, rows: [['A', '1'], ['A', '2']] })).toContain('distinct')
+    expect(rejectsItem({ ...comparison, rows: [['<b>A</b>', '1'], ['B', '2']] })).toContain('HTML')
+  })
+
   it('resolves scenarios option by option, as the same components', () => {
     const repeat = { type: 'table', headers: CHART.headers, rows: [['2026', '100'], ['2027', '105']] }
     const options = [{ ...growth('保守', 0.05), items: [...growth('保守', 0.05).items, repeat] }, growth('乐观', 0.2)]
