@@ -118,6 +118,11 @@ export interface IntelligentUiExplorerItem {
     | { readonly op: 'mean'; readonly label: string; readonly column: number; readonly groupBy?: number | undefined }
   )[]
   readonly steps: boolean
+  /** Optional graphic uses this same dataset, filters and selected row. */
+  readonly plot?: (
+    | { readonly type: 'scatter'; readonly x: number; readonly y: number; readonly groupBy?: number | undefined }
+    | { readonly type: 'timeline'; readonly x: number; readonly groupBy?: number | undefined }
+  ) | undefined
 }
 
 /** One resolved view item; every string in it was copied from the bound answer. */

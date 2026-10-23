@@ -12,7 +12,7 @@ import type {
   IntelligentUiView,
 } from '../types.ts'
 import { analyzeColumn, parseCell, valueAxis } from '../numeric.ts'
-import { explore, explorerDefaults } from '../explorer.ts'
+import { explore, explorerDefaults, explorerPlot } from '../explorer.ts'
 import type { NS } from './locales.ts'
 
 type T = TranslateNS<typeof NS>
@@ -148,6 +148,7 @@ function Explorer({ item, t }: { item: IntelligentUiExplorerItem; t: T }) {
           })}
         </div>
       )}
+      {item.plot !== undefined && <ExplorerPlot item={item} rows={rows} selected={selected} onSelect={selectRow} t={t} />}
       {metrics.length > 0 && (
         <div aria-live="polite" aria-atomic="true">
           <div className="diu-metrics">
@@ -193,6 +194,93 @@ function Explorer({ item, t }: { item: IntelligentUiExplorerItem; t: T }) {
         <TableView table={item.table} t={t} onSelect={selectRow} selectedRow={selected} selectColumn={item.selection} />
       </details>
     </section>
+  )
+}
+
+/** React owns the SVG and delegates every selection to the explorer's single state owner. */
+function ExplorerPlot({ item, rows, selected, onSelect, t }: {
+  item: IntelligentUiExplorerItem; rows: readonly (readonly string[])[]; selected: readonly string[] | undefined
+  onSelect: (row: readonly string[]) => void; t: T
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(640)
+  const id = useId()
+  useEffect(() => {
+    const node = ref.current
+    if (node === null || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry !== undefined && entry.contentRect.width > 0) setWidth(Math.max(240, Math.round(entry.contentRect.width)))
+    })
+    observer.observe(node)
+    return () => { observer.disconnect() }
+  }, [])
+  const data = useMemo(() => explorerPlot(item, rows), [item, rows])
+  const plot = item.plot
+  if (data === undefined || plot === undefined) return null
+  const scatter = plot.type === 'scatter'
+  const groups = data.groups.map((name, index) => ({ name, index })).filter(group => data.points.some(point => point.group === group.index))
+  const height = scatter ? 280 : Math.max(1, groups.length) * 84 + 60
+  const left = 60, right = width - 24, top = 20, bottom = height - 38
+  const x = (value: number) => left + (value - data.xAxis.min) / (data.xAxis.max - data.xAxis.min) * (right - left)
+  const y = (point: typeof data.points[number]) => scatter
+    ? bottom - (point.y - data.yAxis.min) / (data.yAxis.max - data.yAxis.min) * (bottom - top)
+    : 30 + groups.findIndex(group => group.index === point.group) * 84
+  const label = (point: typeof data.points[number]) => [item.table.headers[item.selection], point.row[item.selection],
+    `${item.table.headers[plot.x]}: ${point.row[plot.x]}`,
+    ...(plot.type === 'scatter' ? [`${item.table.headers[plot.y]}: ${point.row[plot.y]}`] : []),
+    ...(plot.groupBy === undefined ? [] : [point.row[plot.groupBy]])].join(' · ')
+  const chosen = data.points.find(point => point.row === selected)
+  return (
+    <figure className="diu-chart diu-explorer-plot" aria-labelledby={`${id}-title`}>
+      <figcaption id={`${id}-title`}>
+        <strong>{t(scatter ? 'plot.scatter' : 'plot.timeline')}</strong>
+        <span>{plot.type === 'scatter' ? `${item.table.headers[plot.y]} × ${item.table.headers[plot.x]}` : item.table.headers[plot.x]}</span>
+        <span className="diu-muted">{t('plot.count', { shown: data.points.length, total: rows.length })}</span>
+      </figcaption>
+      {plot.groupBy !== undefined && <div className="diu-legend" aria-label={item.table.headers[plot.groupBy]}>
+        {groups.map(group => <span key={group.index} className={`diu-plot-key diu-s${group.index}`}>
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><Marker shape={group.index} x={8} y={8} /></svg>{group.name || t('chart.missing')}
+        </span>)}
+      </div>}
+      <div ref={ref} className="diu-plot">
+        {data.points.length === 0 ? <p role="status">{t('plot.empty')}</p> : (
+          <svg viewBox={`0 0 ${width} ${height}`} role="group" aria-label={t(scatter ? 'plot.scatter' : 'plot.timeline')}>
+            {scatter && data.yAxis.ticks.map(tick => {
+              const at = bottom - (tick - data.yAxis.min) / (data.yAxis.max - data.yAxis.min) * (bottom - top)
+              return <g key={tick} className="diu-grid"><line x1={left} x2={right} y1={at} y2={at} /><text x={left - 8} y={at + 4} textAnchor="end">{tick.toLocaleString()}</text></g>
+            })}
+            {data.xAxis.ticks.filter((_, index) => width >= 420 || index % 2 === 0).map(tick => (
+              <g key={tick} className="diu-grid"><line x1={x(tick)} x2={x(tick)} y1={top} y2={bottom} />
+                <text x={x(tick)} y={height - 16} textAnchor="middle">{tick.toLocaleString()}</text></g>
+            ))}
+            {!scatter && data.points.map((point, index) => {
+              const previous = data.points.slice(0, index).findLast(entry => entry.group === point.group)
+              if (previous === undefined) return null
+              const interval = point.x - previous.x
+              return <g key={index} className={`diu-interval diu-s${point.group}`}>
+                <line x1={x(previous.x)} x2={x(point.x)} y1={y(point)} y2={y(point)} />
+                <text x={(x(previous.x) + x(point.x)) / 2} y={y(point) + 32} textAnchor="middle">Δ {formatNumber(interval)}{data.unit && ` ${data.unit}`}</text>
+              </g>
+            })}
+            {data.points.map((point, index) => <g key={index} className={`diu-mark diu-s${point.group}`}
+              role="button" tabIndex={0} aria-label={label(point)} aria-pressed={point.row === selected}
+              onClick={() => { onSelect(point.row) }} onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(point.row) }
+              }}>
+              <title>{label(point)}</title>
+              <circle className="diu-point-hit" cx={x(point.x)} cy={y(point)} r={12} />
+              {point.row === selected && <circle className="diu-point-selected" cx={x(point.x)} cy={y(point)} r={9} />}
+              <Marker shape={point.group} x={x(point.x)} y={y(point)} />
+              {!scatter && <text x={x(point.x)} y={y(point) - 16} textAnchor="middle">{point.row[plot.x]}</text>}
+            </g>)}
+          </svg>
+        )}
+      </div>
+      <div className="diu-muted" role="status">{chosen === undefined
+        ? selected === undefined ? t('table.empty') : t('plot.selectedMissing')
+        : label(chosen)}</div>
+      {!scatter && <div className="diu-muted">{t('plot.interval')}</div>}
+    </figure>
   )
 }
 
