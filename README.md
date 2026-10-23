@@ -74,7 +74,8 @@ dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.5.tgz
 
 `inline-stream` 的 `calculator` 组件让读者调参数、结果在本地实时重算，对应 ChatGPT Intelligent UI 里 `useState` 加派生值的写法（参见 [How ChatGPT's Intelligent UI works](https://www.openui.com/blog/how-chatgpt-intelligent-ui-works)），但不执行模型写的 JavaScript。
 
-- `inputs` 最多 6 个：`{id, label, unit?, value, min, max, step?}` 显示为滑块加数字框（数字框失焦时限制在 `min..max`，未给 `step` 时取范围的 1/100）；`{id, label, unit?, value, options}` 显示为 2～8 个选项按钮；两种写法不能混用，带 `options` 的输入不能再给 `min`、`max` 或 `step`。
+- `inputs` 最多 6 个：`{id, label, unit?, value, min, max, step?}` 显示为滑块加数字框（公式只读取 `min..max` 内的值，输入超出范围时按边界计算，数字框失焦后显示该值；默认值必须落在 `min + k·step` 上，`step` 不能大于 `max - min`；未给 `step` 时取不超过范围 1/100 的 10 的整数次幂，全整数范围至少为 1，并且保证默认值落在步长上）；`{id, label, unit?, value, options}` 显示为 2～8 个选项按钮；两种写法不能混用，带 `options` 的输入不能再给 `min`、`max` 或 `step`。
+- 计算器单独成项，不能放进 `scenarios`；放进去时返回明确原因。
 - `outputs` 最多 8 个，按顺序计算：`{id?, label, unit?, formula, decimals?, hidden?}`。公式只能读输入 id 和前面输出的 id；`hidden: true` 的中间量（如月利率、期数）只参与计算，不显示为结果卡片，至少要显示一个输出。
 - 公式是封闭的算术语法：数字、`+ - * / %`、`^`/`**` 幂、括号、比较与 `&& || !`、`c ? a : b`，以及 `min max abs round floor ceil sqrt pow exp ln log10`。公式被解析成闭包求值，不经过 `eval`/`new Function`，也取不到任何对象或全局变量。
 - Host 校验：名字合法且不重复、范围有效、默认值在范围或选项内、公式不引用未知名字或函数，且每个输出在默认输入下是有限数。不满足时把具体原因返回给模型（ChatGPT 的编译诊断不会回到模型，这里会）。
