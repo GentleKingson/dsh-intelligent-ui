@@ -13,7 +13,7 @@ import type {
 } from '../types.ts'
 import { analyzeColumn, parseCell, valueAxis } from '../numeric.ts'
 import { explore, explorerDefaults, explorerPlot } from '../explorer.ts'
-import { clampInput, computeCalculator, computeSeries, parseFormula, parseSeries } from '../formula.ts'
+import { clampInput, computeCalculator, computeSeries, parseFormula, parseSeries, seriesLabel } from '../formula.ts'
 import type { SeriesRows } from '../formula.ts'
 import type { NS } from './locales.ts'
 
@@ -201,14 +201,14 @@ function CalculatorSeries({ spec, rows, t }: { spec: NonNullable<IntelligentUiCa
     const table: IntelligentUiTableData = {
       headers: [spec.label, ...spec.columns.map(column => column.unit === undefined ? column.label : `${column.label}（${column.unit}）`)],
       align: ['left', ...spec.columns.map(() => 'right' as const)],
-      rows: rows.index.map((x, at) => [String(x), ...spec.columns.map((column, index) => cell(rows.rows[at]?.[index] ?? null, column.decimals))]),
+      rows: rows.index.map((x, at) => [seriesLabel(x), ...spec.columns.map((column, index) => cell(rows.rows[at]?.[index] ?? null, column.decimals))]),
     }
     if (spec.chart === undefined || rows.index.length === 0) return { table, chart: undefined }
     const unit = spec.columns[0]?.unit ?? ''
     const plotted = spec.columns.flatMap((column, index) => (column.unit ?? '') === unit ? [{ column, index }] : [])
     const others = spec.columns.filter(column => (column.unit ?? '') !== unit).map(column => column.label)
     const chart: IntelligentUiChartItem = {
-      type: 'chart', chart: spec.chart, xLabel: spec.label, unit, categories: rows.index.map(String), table,
+      type: 'chart', chart: spec.chart, xLabel: spec.label, unit, categories: rows.index.map(seriesLabel), table,
       // Tooltips and the axis show what the table shows, not float tails such as 928,877.5212385055.
       series: plotted.map(({ column, index }) => ({
         name: column.label,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { validateInlineArgs } from '../src/inline.ts'
-import { clampInput, computeCalculator, computeSeries, parseFormula, parseSeries } from '../src/formula.ts'
+import { clampInput, computeCalculator, computeSeries, parseFormula, parseSeries, seriesLabel } from '../src/formula.ts'
 import type { IntelligentUiCalculatorItem } from '../src/types.ts'
 
 const MORTGAGE = {
@@ -83,6 +83,19 @@ describe('calculator', () => {
     expect(reject(series({ x: 'years' }))).toMatch(/defined twice/)
     expect(reject(series({ to: '-1' }))).toMatch(/empty or not finite/)
     expect(reject(series({ columns: [{ label: '比', formula: '1 / (y - 3)' }] }))).toMatch(/not a finite number for every row/)
+    expect(reject(series({ columns: [{ label: '余额', formula: 'nope' }] }))).toMatch(/series column 0 reads unknown name nope/)
+  })
+
+  it('keeps the exact index for formulas and scopes names by field, not by label', () => {
+    const big = accept({
+      ...MORTGAGE,
+      series: { x: 'x', label: '序号', from: '1700000000000', to: '1700000000002', columns: [{ label: 'from', formula: 'x - 1700000000000', decimals: 0 }, { label: 'to', formula: 'x' }] },
+    })
+    const formulas = { outputs: big.outputs.map(output => parseFormula(output.formula)), series: parseSeries(big.series!) }
+    const rows = computeSeries(big, [100, 3.5, 30], formulas)
+    expect(rows.rows.map(row => row[0])).toEqual([0, 1, 2])
+    expect(rows.index.map(seriesLabel)).toEqual(['1700000000000', '1700000000001', '1700000000002'])
+    expect([0.1 * 3, 2030].map(seriesLabel)).toEqual(['0.3', '2030'])
   })
 
   it('accepts an untyped calculator by its outputs', () => {

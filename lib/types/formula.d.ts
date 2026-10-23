@@ -43,6 +43,12 @@ export interface SeriesRows {
     readonly truncated: boolean;
 }
 /**
+ * Display text of a series index: 0.1 * 3 shows as 0.3, while 1700000000002 keeps every digit.
+ * @param x - one index value.
+ * @returns the text for the index column and chart categories.
+ */
+export declare function seriesLabel(x: number): string;
+/**
  * Parse a series' formulas.
  * @param series - the calculator's series.
  * @returns parsed `from`, `to` and column formulas.

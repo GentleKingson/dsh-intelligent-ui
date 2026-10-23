@@ -181,6 +181,15 @@ export interface SeriesRows {
 }
 
 /**
+ * Display text of a series index: 0.1 * 3 shows as 0.3, while 1700000000002 keeps every digit.
+ * @param x - one index value.
+ * @returns the text for the index column and chart categories.
+ */
+export function seriesLabel(x: number): string {
+  return String(Number(x.toPrecision(15)))
+}
+
+/**
  * Parse a series' formulas.
  * @param series - the calculator's series.
  * @returns parsed `from`, `to` and column formulas.
@@ -210,7 +219,8 @@ export function computeSeries(
   if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return { index: [], rows: [], truncated: false }
   // Rounded so float noise in (to - from) / step neither drops nor adds the last row.
   const count = Math.floor((to - from) / series.step + 1e-9) + 1
-  const index = Array.from({ length: Math.min(count, LIMITS.tableRows) }, (_, at) => Number((from + at * series.step).toPrecision(12)))
+  // Formulas read the exact index; only its display drops float noise (see `seriesLabel`).
+  const index = Array.from({ length: Math.min(count, LIMITS.tableRows) }, (_, at) => from + at * series.step)
   const rows = index.map((x) => {
     env[series.x] = x
     return formulas.series.columns.map((column) => {
@@ -300,12 +310,15 @@ export function bindCalculator(item: IntelligentUiCalculatorItem): IntelligentUi
   // The index is visible only inside the series, so it may not shadow an input or output.
   define(series.x)
   const parsed = parseSeries(series)
-  for (const [what, formula] of [['from', parsed.from], ['to', parsed.to], ...parsed.columns.map((column, at) => [series.columns[at]?.label ?? '', column] as const)] as const) {
+  // Scope follows the field, never a display label: from/to run before the index exists, columns run per row.
+  const check = (formula: Formula, where: string, index: boolean): void => {
     for (const name of formula.names) {
-      const readable = known.has(name) && (name !== series.x || (what !== 'from' && what !== 'to'))
-      if (!readable) throw new BindingError(`calculator: series ${what} reads unknown name ${name}`)
+      if (!known.has(name) || (!index && name === series.x)) throw new BindingError(`calculator: series ${where} reads unknown name ${name}`)
     }
   }
+  check(parsed.from, 'from', false)
+  check(parsed.to, 'to', false)
+  parsed.columns.forEach((column, at) => { check(column, `column ${at}`, true) })
   const { index, rows, truncated } = computeSeries(bound, inputs.map(input => input.value), { outputs: formulas, series: parsed })
   if (index.length === 0) throw new BindingError('calculator: series from..to is empty or not finite at the default inputs')
   if (truncated) throw new BindingError(`calculator: series has more than ${LIMITS.tableRows} rows at the default inputs`)
