@@ -1,6 +1,6 @@
 /** Scoped styles; theme tokens come from the host page, so dark mode follows it. */
 export const STYLES = `
-.diu-root{--diu-s0:#3b6fd8;--diu-s1:#d9822b;--diu-s2:#2f9e6e;--diu-s3:#9b59b6;--diu-surface:color-mix(in srgb,currentColor 3%,transparent);--diu-border:var(--dsw-alias-border-l1,rgba(127,127,127,.2));--diu-neg:var(--dsw-alias-state-error-primary,#d64545);margin-top:16px;min-width:0;font-size:14px;line-height:1.55;color:var(--dsw-alias-label-primary,inherit)}
+.diu-root{--diu-s0:#3b6fd8;--diu-s1:#d9822b;--diu-s2:#2f9e6e;--diu-s3:#9b59b6;--diu-surface:color-mix(in srgb,currentColor 3%,transparent);--diu-border:var(--dsw-alias-border-l1,rgba(127,127,127,.2));margin-top:16px;min-width:0;font-size:14px;line-height:1.55;color:var(--dsw-alias-label-primary,inherit)}
 body[data-ds-dark-theme] .diu-root{--diu-s0:#7aa2f7;--diu-s1:#f0a35e;--diu-s2:#5cc797;--diu-s3:#c39ae0}
 .diu-status{color:var(--dsw-alias-label-tertiary,#888);font-size:12px;display:flex;gap:8px;align-items:center}
 .diu-region{container-type:inline-size;border:1px solid var(--diu-border);border-radius:var(--dsw-radius-lg,12px);padding:12px 20px 20px}
@@ -107,8 +107,6 @@ body[data-ds-dark-theme] .diu-root{--diu-s0:#7aa2f7;--diu-s1:#f0a35e;--diu-s2:#5
 .diu-grid text,.diu-xlabel{fill:var(--dsw-alias-label-secondary,#666);font-size:11px}
 .diu-s0{--c:var(--diu-s0)}.diu-s1{--c:var(--diu-s1)}.diu-s2{--c:var(--diu-s2)}.diu-s3{--c:var(--diu-s3)}
 .diu-bars rect{fill:var(--c)}
-.diu-bars rect.diu-neg{stroke:var(--diu-neg);stroke-width:2}
-[data-sign=negative]{color:var(--diu-neg)}
 .diu-line path{fill:none;stroke:var(--c);stroke-width:2}
 .diu-line>circle,.diu-line>rect,.diu-line>path:not(:first-child){fill:var(--c);stroke:none}
 .diu-legend-item svg line{stroke:var(--c);stroke-width:2}
