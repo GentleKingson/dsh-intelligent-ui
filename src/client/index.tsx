@@ -12,6 +12,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
@@ -26,6 +27,7 @@ import { InlineTail, InlineToolView, type InlineTailInjected } from './inline.ts
 import { Region, ViewBoundary } from './View.tsx'
 import { en, NS, zh, type IntelligentUiKey } from './locales.ts'
 import { STYLES } from './styles.ts'
+import { ModeConfig } from './config.tsx'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -106,6 +108,10 @@ function registerUi(ctx: Context): void {
     locale: NS,
     inject: (): Injected => ({ reader }),
   }, IntelligentTail))
+  // Plugins → this row → Configure; a composition without the Plugins page never declares the slot.
+  ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+    name: 'plugins.row.config', key: 'dsh-intelligent-ui#intelligent-ui', locale: NS,
+  }, ModeConfig))
 }
 
 /** Register the `inline-stream` toolview and its completed-turn tail. */

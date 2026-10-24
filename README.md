@@ -36,7 +36,9 @@ dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.5.tgz
 | `inline-stream`（可选，0.1.3 起） | 不发起辅助调用。给根会话的主模型注册原生工具 `render_ui` 和一段 Agent 级提示词，由主模型在同一次请求中流式写出视图数据，见下文 |
 | `off` | 不再发起任何新的辅助调用；此前已生成的视图仍可显示 |
 
-在 profile 的 `cordis.patch.yml` 中切换：
+在 DSH 的 **插件 → dsh-intelligent-ui → intelligent-ui → 配置** 中选择模式并保存（0.2.0-rc.2 与 0.2.1-rc.2 的 Web 均已验证）。保存写入当前 profile 的 `cordis.patch.yml`，**重启 profile 后生效**：插件在启动时读取一次模式，运行中保存不会热切换，页面只在保存成功后提示“已保存，重启 Profile 后生效”。只读 profile 会提示无法保存；保存被拒（例如配置已在别处修改）时提示失败，配置保持不变。
+
+也可以直接在 profile 的 `cordis.patch.yml` 中切换：
 
 ```yaml
 - id: intelligent-ui
@@ -172,7 +174,8 @@ Client 产物 `lib/client.js` 是单个 CJS 浏览器 bundle（按宿主模块�
 
 | 依赖 | 需求 |
 | --- | --- |
-| `zod` | 校验配置、模型输出和存储记录；生成的 Typert 编解码代码也依赖它（与官方插件一致） |
+| `@deepseek-ai/schemastery` | 声明插件配置：`mode` 标为 volatile，DSH 的设置服务才会把它交给插件页编辑（与官方插件一致） |
+| `zod` | 校验模型输出和存储记录；生成的 Typert 编解码代码也依赖它（与官方插件一致） |
 | `mdast-util-from-markdown` + `micromark-extension-gfm` + `mdast-util-gfm` | 解析原回答，建立可引用块和 GFM 表格索引，是“只能引用原文”约束的基础 |
 | `mdast-util-to-string` | 提取标题、单元格的纯文本，用作卡片标题、表头 |
 | `@deepseek-ai/dsh-*`（peer，`0.2.0-rc.2 || 0.2.1-rc.2`） | 宿主服务：llm、session、storage-domain、typert-protocol、cordis |
@@ -197,7 +200,8 @@ Client 产物 `lib/client.js` 是单个 CJS 浏览器 bundle（按宿主模块�
   - 视图成功显示后，前导文字随回合折叠，展开后可见；结论依赖模型遵守提示词，放在视图首个 Markdown 组件中。
   - 流式预览中显示过的组件，如果整次调用最终被拒绝，不会保留。
   - 只支持原生工具参数流。工具以 PTC 方式呈现时，模型看不到 `render_ui`（Web mock 已验证）。
-- Desktop 仅验证 macOS 的 0.2.1-rc.2；其他桌面系统未验证。
+- Desktop 仅验证 macOS 的 0.2.1-rc.2；其他桌面系统未验证。插件页的模式配置只在 Web 上验证过，Desktop 未验证。
+- 模式切换需要重启 profile；不支持热切换。
 - 本地预筛基于启发式规则，可能漏掉少数合适的回答（漏掉时保留原文）。
 - 图表只支持柱状图和折线图（`inline-stream` 另有面积图和环形图），最多 4 个系列且单位必须相同；表格最多 200 行、12 列；每个视图最多 8 个组件。
 - 每次插件重启都会清空用于重试的内存状态，所以重启前失败的视图不再提供“重试”按钮。

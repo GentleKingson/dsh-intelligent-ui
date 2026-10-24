@@ -6,11 +6,11 @@
  * `inline-tool.ts`) and makes no auxiliary call.
  * @module dsh-intelligent-ui
  */
-import type { Context } from '@deepseek-ai/cordis';
+import type { Context, Volatile } from '@deepseek-ai/cordis';
 import { Service } from '@deepseek-ai/cordis';
+import Schema from '@deepseek-ai/schemastery';
 import type { ContextFormed } from '@deepseek-ai/dsh-llm';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
-import { z } from 'zod';
 import type { IntelligentUiReadResult, IntelligentUiSourceRef } from './types.ts';
 export type * from './types.ts';
 declare module '@deepseek-ai/dsh-llm' {
@@ -30,20 +30,19 @@ export interface Config {
     /**
      * `smart-auto` screens every new root answer; `inline-stream` lets the root
      * agent's own model stream view data through a native tool; `off` makes no
-     * new model calls.
+     * new model calls. Volatile only so the Plugins page can edit it; the
+     * service reads it once at start, so a saved change applies on restart.
      */
-    readonly mode: 'smart-auto' | 'inline-stream' | 'off';
+    readonly mode: Volatile<'smart-auto' | 'inline-stream' | 'off'>;
 }
 /** Host service and Remote namespace `intelligentUi`. */
 export declare class IntelligentUiService extends TypertRemoteService {
     static inject: string[];
-    static Config: z.ZodObject<{
-        mode: z.ZodDefault<z.ZodEnum<{
-            off: "off";
-            "smart-auto": "smart-auto";
-            "inline-stream": "inline-stream";
-        }>>;
-    }, z.core.$strict>;
+    static Config: Schema<Schemastery.ObjectS<NoInfer<{
+        mode: Schema<"off" | "smart-auto" | "inline-stream", "off" | "smart-auto" | "inline-stream", "volatile-defined">;
+    }>>, Schemastery.ObjectT<NoInfer<{
+        mode: Schema<"off" | "smart-auto" | "inline-stream", "off" | "smart-auto" | "inline-stream", "volatile-defined">;
+    }>>, "plain">;
     private readonly mode;
     private readonly trackers;
     private readonly memory;
