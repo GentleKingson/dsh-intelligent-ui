@@ -21,7 +21,7 @@ dsh plugin --profile <profile> add https://github.com/GentleKingson/dsh-intellig
 不访问 GitHub。预编译包在 [`release/`](release/) 中：
 
 ```sh
-dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.5.tgz
+dsh plugin --profile <profile> add /path/to/dsh-intelligent-ui-0.1.6.tgz
 ```
 
 安装后重启该 profile。插件自带的 `cordis.patch.yml` 只插入一个节点 `intelligent-ui`，默认配置为 `mode: smart-auto`。它不覆盖主 Agent Loop 或任何宿主节点。
