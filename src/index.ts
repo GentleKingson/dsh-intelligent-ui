@@ -7,8 +7,9 @@
  * @module dsh-intelligent-ui
  */
 
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context, Volatile } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
+import Schema from '@deepseek-ai/schemastery'
 import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, ContextFormed, GenerateOptions } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
@@ -49,12 +50,17 @@ export interface Config {
   /**
    * `smart-auto` screens every new root answer; `inline-stream` lets the root
    * agent's own model stream view data through a native tool; `off` makes no
-   * new model calls.
+   * new model calls. Volatile only so the Plugins page can edit it; the
+   * service reads it once at start, so a saved change applies on restart.
    */
-  readonly mode: 'smart-auto' | 'inline-stream' | 'off'
+  readonly mode: Volatile<'smart-auto' | 'inline-stream' | 'off'>
 }
 
-const configSchema = z.strictObject({ mode: z.enum(['smart-auto', 'inline-stream', 'off']).default('smart-auto') })
+type Mode = ReturnType<Config['mode']['get']>
+
+const configSchema = Schema.object({
+  mode: Schema.union(['smart-auto', 'inline-stream', 'off'] as const).default('smart-auto').volatile(),
+})
 
 const recordSchema = z.strictObject({
   schema: z.literal(RENDER_SCHEMA_VERSION),
@@ -138,7 +144,7 @@ export class IntelligentUiService extends TypertRemoteService {
 
   static Config = configSchema
 
-  private readonly mode: Config['mode']
+  private readonly mode: Mode
   private readonly trackers = new Map<string, TurnTracker>()
   private readonly memory = new Map<string, MemoryEntry>()
   private table?: KvTable<string, ViewRecord>
@@ -151,7 +157,7 @@ export class IntelligentUiService extends TypertRemoteService {
    */
   constructor(ctx: Context, config: Config) {
     super(ctx, 'intelligentUi')
-    this.mode = config.mode
+    this.mode = config.mode.get()
   }
 
   /** Open the result domain, then start observing committed session events. */

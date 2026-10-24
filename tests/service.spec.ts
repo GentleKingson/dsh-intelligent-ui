@@ -102,6 +102,14 @@ function tempRoot(): string {
 }
 
 describe('IntelligentUiService', () => {
+  it('declares mode as the one volatile field the Plugins page edits, defaulting to smart-auto', () => {
+    const schema = IntelligentUiService.Config
+    expect(schema.dict?.['mode']?.meta.volatile).toBe(true)
+    expect(schema({}).mode.get()).toBe('smart-auto')
+    expect(schema({ mode: 'off' }).mode.get()).toBe('off')
+    expect(() => schema({ mode: 'bogus' } as never)).toThrow()
+  })
+
   it('makes exactly one tool-free auxiliary call for a completed root answer and persists the view', async () => {
     const { ctx, service, calls } = await boot(tempRoot(), [text(PROGRAM)])
     const { replay, ...ref } = turn(ctx, 's1', 1)
