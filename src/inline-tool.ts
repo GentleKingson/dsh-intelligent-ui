@@ -16,7 +16,7 @@ const PTC_TRANSPORT = 'run_code'
 
 const tool: ToolDefinition = {
   name: INLINE_TOOL_NAME,
-  description: 'Show the user an interactive view (Markdown, cards, sortable table, bar/line chart, or explorer with linked filters, summaries, scatterplot/retry timeline and record/step selection, or a calculator whose outputs recompute live from inputs) built from data you supply. '
+  description: 'Show the user an interactive view (Markdown, cards, sortable table, bar/line/area/pie chart, code tabs, checklist, or explorer with linked filters, summaries, scatterplot/retry timeline and record/step selection, or a calculator whose outputs recompute live from inputs) built from data you supply. '
     + 'Renders directly in the conversation from the data you pass; never install packages, run benchmarks, read app or plugin sources, or write HTML files for it. '
     + 'No runnable code: put code in fenced blocks. Use for option comparisons, lists of items sharing fields, numeric data, and calculators; other answers stay Markdown. Write a short Markdown answer before calling. '
     + 'A successful call ends your turn.',
