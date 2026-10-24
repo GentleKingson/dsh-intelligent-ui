@@ -718,7 +718,8 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
   const [showData, setShowData] = useState(false)
   const dataId = useId()
   // Draw at the rendered width so axis text keeps its size on narrow screens.
-  const plotRef = useRef<HTMLDivElement>(null)
+  // The figure stays mounted when a scenario swaps a pie for another kind, so the observer never loses its node.
+  const plotRef = useRef<HTMLElement>(null)
   const [width, setWidth] = useState(WIDTH)
   useEffect(() => {
     const node = plotRef.current
@@ -763,7 +764,7 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
     }),
   ].join('；')
   return (
-    <figure className="diu-chart">
+    <figure className="diu-chart" ref={plotRef}>
       <figcaption>
         <span className="diu-chart-title">{t('chart.title', { x: item.xLabel, kind: t(KIND[item.chart]) })}</span>
         {item.unit !== '' && <span className="diu-muted">{t('chart.unit', { unit: item.unit })}</span>}
@@ -783,7 +784,7 @@ export function Chart({ item, t, scale }: { item: IntelligentUiChartItem; t: T; 
           </button>
         ))}
       </div>
-      <div className="diu-plot" ref={plotRef}>
+      <div className="diu-plot">
         <svg viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label={label}
           // A tap ends with a synthetic leave; only a mouse/pen leaving hides the tooltip.
           onPointerLeave={(event) => { if (event.pointerType !== 'touch') setActive(null) }}>
