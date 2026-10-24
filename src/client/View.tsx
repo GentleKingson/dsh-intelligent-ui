@@ -43,7 +43,7 @@ function Markdown({ text, t }: { text: string; t: T }) {
 /**
  * The collapsible, closable region.
  * @param props - resolved view and translator.
- * @returns the region, or a restore button once closed.
+ * @returns the region, plus a restore button once closed.
  */
 export function Region({ view, t }: { view: IntelligentUiView; t: T }) {
   const [open, setOpen] = useState(true)
@@ -52,11 +52,11 @@ export function Region({ view, t }: { view: IntelligentUiView; t: T }) {
   const [note, main] = view.items
   const composed = view.items.length === 2 && note?.type === 'markdown' && note.markdown.length <= 320
     && (main?.type === 'chart' || (main?.type === 'table' && main.presentation === undefined))
-  if (closed) {
-    return <button type="button" className="diu-link" onClick={() => { setClosed(false) }}>{t('region.reopen')}</button>
-  }
+  // Collapsing or closing only hides the view, so checklist edits and calculator inputs survive reopening.
   return (
-    <section className="diu-region" aria-label={t('region.label')}>
+    <>
+    {closed && <button type="button" className="diu-link" onClick={() => { setClosed(false) }}>{t('region.reopen')}</button>}
+    <section className="diu-region" aria-label={t('region.label')} hidden={closed}>
       <header className="diu-head">
         <button type="button" className="diu-toggle" aria-expanded={open} aria-controls={bodyId}
           onClick={() => { setOpen(!open) }} title={t(open ? 'region.collapse' : 'region.expand')}>
@@ -66,12 +66,11 @@ export function Region({ view, t }: { view: IntelligentUiView; t: T }) {
         <button type="button" className="diu-icon" aria-label={t('region.close')} title={t('region.close')}
           onClick={() => { setClosed(true) }}>×</button>
       </header>
-      {open && (
-        <div id={bodyId} className={composed ? 'diu-body diu-composed' : 'diu-body'}>
-          {view.items.map((item, index) => <Item key={index} item={item} t={t} />)}
-        </div>
-      )}
+      <div id={bodyId} className={composed ? 'diu-body diu-composed' : 'diu-body'} hidden={!open}>
+        {view.items.map((item, index) => <Item key={index} item={item} t={t} />)}
+      </div>
     </section>
+    </>
   )
 }
 

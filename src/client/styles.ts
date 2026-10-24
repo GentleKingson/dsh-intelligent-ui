@@ -15,6 +15,7 @@ body[data-ds-dark-theme] .diu-root{--diu-neg:var(--dsw-alias-state-error-primary
 .diu-link{color:var(--dsw-alias-state-business-primary,#3b6fd8)!important;font-size:12px}
 .diu-muted{color:var(--dsw-alias-label-tertiary,#888);font-size:12px}
 .diu-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.diu-root [hidden]{display:none!important}
 .diu-body{display:flex;flex-direction:column;gap:20px;padding-top:12px;min-width:0}
 .diu-md>div{font-size:inherit;color:inherit}
 .diu-cards{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px}
